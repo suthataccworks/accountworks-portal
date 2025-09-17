@@ -49,10 +49,9 @@ def cancel_booking(booking_id, username, is_admin=False):
     c = conn.cursor()
 
     if is_admin:
-        # ✅ Admin ลบได้ทุกการจอง
         c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
     else:
-        # ✅ User ปกติ ลบได้เฉพาะของตัวเอง
+        # ❗ กัน 100% → User ธรรมดาลบได้เฉพาะของตัวเอง
         c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
 
     conn.commit()
@@ -126,7 +125,7 @@ def cancel_booking_ui(username, role="User"):
         st.info("ยังไม่มีการจอง")
         return
 
-    # ✅ ถ้าไม่ใช่ Admin → filter เฉพาะของตัวเอง
+    # ✅ Filter ชั้นแรก: User ปกติเห็นเฉพาะของตัวเอง
     if role != "Admin":
         df = df[df["username"] == username]
 
@@ -143,11 +142,11 @@ def cancel_booking_ui(username, role="User"):
 
         # ✅ สีพื้นหลัง
         if is_past:
-            bg = "#e0e0e0"  # เทา (หมดเวลา)
+            bg = "#e0e0e0"  # เทา
         elif is_self:
-            bg = "#d1ffd1"  # เขียว (ของตัวเอง)
+            bg = "#d1ffd1"  # เขียว
         else:
-            bg = "#ffd1d1"  # แดง (ของคนอื่น - เห็นเฉพาะ Admin)
+            bg = "#ffd1d1"  # แดง (Admin เท่านั้นที่เห็น)
 
         with st.container():
             st.markdown(
@@ -159,7 +158,6 @@ def cancel_booking_ui(username, role="User"):
                 """,
                 unsafe_allow_html=True
             )
-            # ✅ หมดเวลาแล้วไม่ให้ยกเลิก
             if not is_past:
                 if st.button("🗑 ยกเลิก", key=f"del_{row['id']}"):
                     success = cancel_booking(row["id"], username, is_admin=(role == "Admin"))
