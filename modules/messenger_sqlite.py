@@ -1,11 +1,11 @@
+import streamlit as st
 import sqlite3
 import pandas as pd
-import streamlit as st
 import datetime
 
 DB_FILE = "messenger_booking.db"
 
-# ================= Database Init =================
+# ================== Database ==================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -17,18 +17,18 @@ def init_db():
             document_type TEXT,
             booking_date TEXT,
             booking_time TEXT,
-            status TEXT
+            status TEXT DEFAULT 'รอจัดการ'
         )
     """)
     conn.commit()
     conn.close()
 
-# ================= CRUD =================
+
 def add_booking(username, company, document_type, booking_date, booking_time):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    # ✅ ตรวจสอบว่ามีการจองซ้ำในวัน+เวลาแล้วหรือยัง
+    # ✅ เช็คว่ามีการจองเวลาซ้ำหรือยัง
     c.execute("""
         SELECT COUNT(*) FROM messenger_booking
         WHERE booking_date=? AND booking_time=?
@@ -37,7 +37,7 @@ def add_booking(username, company, document_type, booking_date, booking_time):
 
     if exists > 0:
         conn.close()
-        return False  # มีการจองซ้ำ
+        return False  # จองซ้ำ
 
     c.execute("""
         INSERT INTO messenger_booking (username, company, document_type, booking_date, booking_time, status)
@@ -47,63 +47,41 @@ def add_booking(username, company, document_type, booking_date, booking_time):
     conn.close()
     return True
 
+
 def get_all_bookings():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC, booking_time DESC", conn)
     conn.close()
     return df
 
-def delete_booking(booking_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
-    conn.commit()
-    conn.close()
 
-# ================= UI Forms =================
+# ================== UI Functions ==================
 def booking_form(username="ไม่ระบุ"):
     st.subheader("🚚 แบบฟอร์มจอง Messenger")
 
     company = st.text_input("ชื่อบริษัท")
     document_type = st.text_input("ประเภทเอกสาร")
-    booking_date = st.date_input("วันที่ต้องการใช้ Messenger", datetime.date.today())
+    booking_date = st.date_input("วันที่ต้องการใช้ Messenger", min_value=datetime.date.today())
     booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger", [f"{h:02d}:00" for h in range(7, 19)])
 
-    if st.button("✨ ยืนยันการจอง"):
-        if company and document_type:
-            success = add_booking(username, company, document_type, str(booking_date), booking_time)
-            if success:
-                st.success("✅ บันทึกการจองเรียบร้อยแล้ว")
-            else:
-                st.error("⚠️ เวลานี้มีการจองแล้ว กรุณาเลือกเวลาอื่น")
+    if st.button("📌 ยืนยันการจอง"):
+        success = add_booking(username, company, document_type, str(booking_date), str(booking_time))
+        if success:
+            st.success("✅ จองสำเร็จแล้ว")
         else:
-            st.error("⚠️ กรุณากรอกข้อมูลให้ครบ")
+            st.error("❌ มีการจองเวลานี้แล้ว กรุณาเลือกเวลาอื่น")
+
 
 def manage_bookings():
-    st.subheader("📋 รายการจอง Messenger ทั้งหมด")
-
+    st.subheader("📋 รายการจองทั้งหมด")
     df = get_all_bookings()
-    if df.empty:
-        st.info("ยังไม่มีข้อมูลการจอง")
-        return
-
     st.dataframe(df, use_container_width=True)
 
-    delete_id = st.number_input("กรอก ID ที่ต้องการลบ", min_value=0, step=1)
-    if st.button("🗑️ ลบการจอง"):
-        delete_booking(delete_id)
-        st.warning(f"ลบรายการที่ ID {delete_id} เรียบร้อยแล้ว")
-        st.experimental_rerun()
 
-# ================= Calendar View =================
 def calendar_view():
     st.subheader("📅 ปฏิทินการจอง Messenger (จันทร์ - อาทิตย์)")
 
     df = get_all_bookings()
-
-    if df.empty:
-        st.info("ยังไม่มีการจอง Messenger")
-        return
 
     # รายชั่วโมง 07:00 - 18:00
     time_slots = [f"{h:02d}:00" for h in range(7, 19)]
@@ -132,19 +110,47 @@ def calendar_view():
             col_name = booking_date.strftime("%a %d/%m")
             calendar.at[time_str, col_name] = f"{username} ({company})"
 
-    st.dataframe(calendar, use_container_width=True)
+    # ✅ ทำให้วัน/เวลาที่ผ่านมาแล้วเป็นสีเทา + เปลี่ยนข้อความ
+    def highlight_past(val, row_time, col_date):
+        booking_date = datetime.datetime.strptime(col_date, "%a %d/%m").date()
+        booking_datetime = datetime.datetime.combine(booking_date, datetime.time(int(row_time.split(":")[0]), 0))
 
-# ================= Main Program =================
+        if booking_datetime < datetime.datetime.now():
+            return "background-color: lightgray; color: black;"
+        return ""
+
+    def replace_past(val, row_time, col_date):
+        booking_date = datetime.datetime.strptime(col_date, "%a %d/%m").date()
+        booking_datetime = datetime.datetime.combine(booking_date, datetime.time(int(row_time.split(":")[0]), 0))
+        if booking_datetime < datetime.datetime.now():
+            return "⏳ หมดเวลา"
+        return val
+
+    # แทนค่าช่องที่หมดเวลา
+    for col in calendar.columns:
+        for row_time in calendar.index:
+            calendar.at[row_time, col] = replace_past(calendar.at[row_time, col], row_time, col)
+
+    styled_calendar = calendar.style.apply(
+        lambda col: [
+            highlight_past(val, row_time, col.name)
+            for row_time, val in zip(calendar.index, col)
+        ],
+        axis=0
+    )
+
+    st.dataframe(styled_calendar, use_container_width=True)
+
+
+# ================== Main ==================
 def program_messenger_booking(username="ไม่ระบุ"):
     init_db()
 
-    st.title("📦 ระบบจอง Messenger")
-    menu = ["📌 จอง Messenger", "📋 รายการทั้งหมด", "📅 ปฏิทินสัปดาห์"]
-    choice = st.radio("เมนู", menu)
+    menu = st.radio("เมนู", ["✍ จอง Messenger", "📋 รายการทั้งหมด", "📅 ปฏิทินรายสัปดาห์"])
 
-    if choice == "📌 จอง Messenger":
+    if menu == "✍ จอง Messenger":
         booking_form(username=username)
-    elif choice == "📋 รายการทั้งหมด":
+    elif menu == "📋 รายการทั้งหมด":
         manage_bookings()
-    elif choice == "📅 ปฏิทินสัปดาห์":
+    elif menu == "📅 ปฏิทินรายสัปดาห์":
         calendar_view()
