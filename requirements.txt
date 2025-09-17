@@ -6,4 +6,4 @@ selenium
 webdriver-manager
 requests
 openpyxl
-plotly
+bcrypt==4.0.1
