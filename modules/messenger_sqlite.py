@@ -53,11 +53,18 @@ def delete_booking(booking_id, username, role):
         # ✅ Admin ลบได้ทุก booking
         c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
     else:
-        # ✅ User ลบได้เฉพาะ booking ของตัวเองเท่านั้น
+        # ✅ ตรวจสอบก่อนว่าการจองนี้เป็นของ user จริงหรือไม่
+        c.execute("SELECT username FROM messenger_booking WHERE id=?", (booking_id,))
+        row = c.fetchone()
+        if not row or row[0] != username:
+            conn.close()
+            return False  # ❌ ไม่ใช่เจ้าของ → ห้ามลบ
+
+        # ✅ ถ้าเป็นของ user เอง → ลบได้
         c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
 
     conn.commit()
-    affected = c.rowcount  # จะได้ค่า 0 ถ้าไม่มีสิทธิ์ลบ
+    affected = c.rowcount
     conn.close()
     return affected > 0
 
