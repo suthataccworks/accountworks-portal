@@ -122,6 +122,7 @@ def cancel_booking_ui(username, role="User"):
         st.info("ยังไม่มีการจอง")
         return
 
+    # ✅ User เห็นเฉพาะของตัวเอง
     if role != "Admin":
         df = df[df["username"] == username]
 
@@ -129,18 +130,40 @@ def cancel_booking_ui(username, role="User"):
         st.info("คุณยังไม่มีการจองที่จะยกเลิก")
         return
 
-    st.dataframe(df, use_container_width=True)
+    today = datetime.date.today()
 
-    # ✅ เลือกจาก dropdown ไม่ต้องพิมพ์เอง
-    booking_id = st.selectbox("เลือกรายการที่จะยกเลิก", df["id"].tolist())
+    # ✅ แสดงการจองแบบมีสี + ปุ่มยกเลิก
+    for _, row in df.iterrows():
+        booking_day = datetime.datetime.strptime(row["booking_date"], "%Y-%m-%d").date()
+        is_past = booking_day < today
+        is_self = row["username"] == username
 
-    if st.button("❌ ยกเลิกการจอง"):
-        success = cancel_booking(booking_id, username, is_admin=(role == "Admin"))
-        if success:
-            st.success(f"ลบการจอง ID {booking_id} เรียบร้อยแล้ว")
-            st.experimental_rerun()
+        # เลือกสีพื้นหลัง
+        if is_past:
+            bg = "#e0e0e0"  # เทา
+        elif is_self:
+            bg = "#d1ffd1"  # เขียว
         else:
-            st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้")
+            bg = "#ffd1d1"  # แดง
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color:{bg}; padding:10px; border-radius:8px; margin-bottom:5px;'>
+                    🆔 {row['id']} | 👤 {row['username']} | 🏢 {row['company']} | 📄 {row['document_type']}  
+                    📅 {row['booking_date']} {row['booking_time']} | 📞 {row['contact_number']}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            if not is_past:  # หมดเวลาแล้วไม่ให้ยกเลิก
+                if st.button("🗑 ยกเลิก", key=f"del_{row['id']}"):
+                    success = cancel_booking(row["id"], username, is_admin=(role == "Admin"))
+                    if success:
+                        st.success(f"ลบการจอง ID {row['id']} เรียบร้อยแล้ว")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้")
 
 # ================= Main Program =================
 def program_messenger_booking(username="ไม่ระบุ", role="User"):
