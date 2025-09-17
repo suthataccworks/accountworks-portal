@@ -47,10 +47,14 @@ def get_all_bookings():
 def cancel_booking(booking_id, username, is_admin=False):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
     if is_admin:
+        # ✅ Admin ลบได้ทุกการจอง
         c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
     else:
+        # ✅ User ปกติ ลบได้เฉพาะของตัวเอง
         c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
+
     conn.commit()
     affected = conn.total_changes
     conn.close()
@@ -122,7 +126,7 @@ def cancel_booking_ui(username, role="User"):
         st.info("ยังไม่มีการจอง")
         return
 
-    # ✅ User เห็นเฉพาะของตัวเอง
+    # ✅ ถ้าไม่ใช่ Admin → filter เฉพาะของตัวเอง
     if role != "Admin":
         df = df[df["username"] == username]
 
@@ -132,19 +136,18 @@ def cancel_booking_ui(username, role="User"):
 
     today = datetime.date.today()
 
-    # ✅ แสดงการจองแบบมีสี + ปุ่มยกเลิก
     for _, row in df.iterrows():
         booking_day = datetime.datetime.strptime(row["booking_date"], "%Y-%m-%d").date()
         is_past = booking_day < today
         is_self = row["username"] == username
 
-        # เลือกสีพื้นหลัง
+        # ✅ สีพื้นหลัง
         if is_past:
-            bg = "#e0e0e0"  # เทา
+            bg = "#e0e0e0"  # เทา (หมดเวลา)
         elif is_self:
-            bg = "#d1ffd1"  # เขียว
+            bg = "#d1ffd1"  # เขียว (ของตัวเอง)
         else:
-            bg = "#ffd1d1"  # แดง
+            bg = "#ffd1d1"  # แดง (ของคนอื่น - เห็นเฉพาะ Admin)
 
         with st.container():
             st.markdown(
@@ -156,7 +159,8 @@ def cancel_booking_ui(username, role="User"):
                 """,
                 unsafe_allow_html=True
             )
-            if not is_past:  # หมดเวลาแล้วไม่ให้ยกเลิก
+            # ✅ หมดเวลาแล้วไม่ให้ยกเลิก
+            if not is_past:
                 if st.button("🗑 ยกเลิก", key=f"del_{row['id']}"):
                     success = cancel_booking(row["id"], username, is_admin=(role == "Admin"))
                     if success:
