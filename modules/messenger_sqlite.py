@@ -1,118 +1,116 @@
-import streamlit as st
-import pandas as pd
-import datetime
 import sqlite3
+import pandas as pd
+import streamlit as st
+import datetime
 
 DB_FILE = "messenger_booking.db"
 
-# ============ Database ==============
+# ================= Database Init =================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
-    CREATE TABLE IF NOT EXISTS messenger_booking (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT,
-        company TEXT,
-        document_type TEXT,
-        booking_date TEXT,
-        booking_time TEXT,
-        status TEXT
-    )
+        CREATE TABLE IF NOT EXISTS messenger_booking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            company TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            pickup_location TEXT,
+            dropoff_location TEXT,
+            contact_number TEXT,
+            booking_date TEXT NOT NULL,
+            booking_time TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'รอจัดการ'
+        )
     """)
     conn.commit()
     conn.close()
 
-def add_booking(username, company, document_type, booking_date, booking_time):
+# ================= CRUD =================
+def add_booking(username, company, document_type, pickup, dropoff, contact, booking_date, booking_time):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # ตรวจสอบว่าซ้ำหรือยัง
     c.execute("""
-        SELECT COUNT(*) FROM messenger_booking
-        WHERE booking_date=? AND booking_time=?
-    """, (booking_date, booking_time))
-    exists = c.fetchone()[0]
-
-    if exists > 0:
-        conn.close()
-        return False  # มีการจองแล้ว
-
-    c.execute("""
-        INSERT INTO messenger_booking (username, company, document_type, booking_date, booking_time, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (username, company, document_type, booking_date, booking_time, "รอจัดการ"))
+        INSERT INTO messenger_booking 
+        (username, company, document_type, pickup_location, dropoff_location, contact_number, booking_date, booking_time, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (username, company, document_type, pickup, dropoff, contact, booking_date, booking_time, "รอจัดการ"))
     conn.commit()
     conn.close()
-    return True
 
 def get_all_bookings():
     conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql("SELECT * FROM messenger_booking", conn)
+    df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date, booking_time", conn)
     conn.close()
     return df
 
+# ================= Booking Form =================
+def booking_form(username="ไม่ระบุ"):
+    st.subheader("📋 แบบฟอร์มจอง Messenger")
 
-# ============ Calendar View ==============
+    company = st.text_input("ชื่อบริษัท")
+    document_type = st.text_input("ประเภทเอกสาร")
+    pickup = st.text_input("📍 สถานที่รับเอกสาร")
+    dropoff = st.text_input("🏢 สถานที่ส่งเอกสาร")
+    contact = st.text_input("📞 เบอร์ติดต่อ")
+
+    booking_date = st.date_input("วันที่ต้องการใช้ Messenger", min_value=datetime.date.today())
+    booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger", 
+                                [f"{h:02d}:00" for h in range(7, 19)])
+
+    if st.button("✅ ยืนยันการจอง"):
+        # ตรวจสอบว่ามีการจองซ้ำหรือยัง
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("""
+            SELECT COUNT(*) FROM messenger_booking 
+            WHERE booking_date=? AND booking_time=?
+        """, (str(booking_date), booking_time))
+        exists = c.fetchone()[0]
+        conn.close()
+
+        if exists > 0:
+            st.error(f"❌ มีการจองแล้วในช่วง {booking_date} {booking_time}")
+        else:
+            add_booking(username, company, document_type, pickup, dropoff, contact, str(booking_date), booking_time)
+            st.success(f"🎉 จอง Messenger สำเร็จสำหรับ {booking_date} {booking_time}")
+
+# ================= Calendar View =================
 def calendar_view():
     st.subheader("📅 ปฏิทินการจอง Messenger (จันทร์ - อาทิตย์)")
 
     today = datetime.date.today()
-    monday = today - datetime.timedelta(days=today.weekday())  # วันจันทร์
-    week_days = [monday + datetime.timedelta(days=i) for i in range(7)]
+    week_days = [today + datetime.timedelta(days=i) for i in range(7)]
+    times = [f"{h:02d}:00" for h in range(7, 19)]
 
-    # ช่วงเวลา 07:00 - 18:00
-    time_slots = [f"{h:02d}:00" for h in range(7, 19)]
+    df = get_all_bookings()
+    bookings = {(row["booking_date"], row["booking_time"]): row["company"] for _, row in df.iterrows()}
 
-    # สร้าง DataFrame เปล่า
-    calendar = pd.DataFrame(index=time_slots, columns=[d.strftime("%a %d/%m/%Y") for d in week_days])
-
-    # ดึงข้อมูลจาก DB
-    bookings = get_all_bookings()
-
-    for d in week_days:
-        day_str = d.strftime("%Y-%m-%d")
-        col_name = d.strftime("%a %d/%m/%Y")
-        for t in time_slots:
-            booking = bookings[(bookings["booking_date"] == day_str) & (bookings["booking_time"] == t)]
-            if not booking.empty:
-                if len(booking) > 1:
-                    calendar.loc[t, col_name] = "❌ ถูกจองแล้ว"
-                else:
-                    calendar.loc[t, col_name] = booking.iloc[0]["company"]
+    # สร้างตารางปฏิทิน
+    table = []
+    for t in times:
+        row = []
+        for d in week_days:
+            key = (str(d), t)
+            if d < today:
+                row.append("⏳ หมดเวลา")
+            elif key in bookings:
+                row.append(f"📌 {bookings[key]}")
             else:
-                calendar.loc[t, col_name] = "ว่าง ✅"
+                row.append("ว่าง ✅")
+        table.append(row)
 
-    # ฟังก์ชันเปลี่ยนข้อความ
-    def replace_past(val, row_time, col_date):
-        booking_date = datetime.datetime.strptime(col_date, "%a %d/%m/%Y").date()
-        booking_datetime = datetime.datetime.combine(booking_date, datetime.time(int(row_time.split(":")[0]), 0))
-        if booking_datetime < datetime.datetime.now():
-            return "⏳ หมดเวลา"
-        return val
+    df_calendar = pd.DataFrame(table, index=times, columns=[d.strftime("%a %d/%m") for d in week_days])
+    st.dataframe(df_calendar, use_container_width=True)
 
-    # ฟังก์ชันเปลี่ยนสี
-    def highlight_past(val, row_time, col_date):
-        booking_date = datetime.datetime.strptime(col_date, "%a %d/%m/%Y").date()
-        booking_datetime = datetime.datetime.combine(booking_date, datetime.time(int(row_time.split(":")[0]), 0))
-        if booking_datetime < datetime.datetime.now():
-            return "background-color: lightgray; color: black;"
-        return ""
-
-    # Apply ทั้ง DataFrame
-    styled_calendar = calendar.copy()
-    for col in styled_calendar.columns:
-        for row in styled_calendar.index:
-            styled_calendar.loc[row, col] = replace_past(calendar.loc[row, col], row, col)
-
-    styled_calendar = styled_calendar.style.applymap(
-        lambda v, row_time, col_date: highlight_past(v, row_time, col_date),
-        row_time=styled_calendar.index, col_date=styled_calendar.columns
-    )
-
-    st.dataframe(styled_calendar, use_container_width=True, height=600)
-
-
-# ============ Run ==============
-if __name__ == "__main__":
+# ================= Main Program =================
+def program_messenger_booking(username="ไม่ระบุ"):
     init_db()
-    calendar_view()
+    st.title("🚚 ระบบจอง Messenger")
+
+    menu = st.radio("เมนู", ["✍ จอง Messenger", "📅 ปฏิทินการจอง"], horizontal=True)
+
+    if menu == "✍ จอง Messenger":
+        booking_form(username=username)
+    else:
+        calendar_view()
