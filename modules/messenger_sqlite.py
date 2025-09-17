@@ -9,6 +9,8 @@ DB_FILE = "messenger_booking.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
+    # ✅ สร้างตารางเบื้องต้น (ไม่รวม booking_time)
     c.execute("""
         CREATE TABLE IF NOT EXISTS messenger_booking (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,10 +18,16 @@ def init_db():
             company TEXT NOT NULL,
             document_type TEXT NOT NULL,
             booking_date TEXT NOT NULL,
-            booking_time TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'รอจัดการ'
         )
     """)
+
+    # ✅ ตรวจสอบ schema ถ้าไม่มี booking_time → เพิ่ม column อัตโนมัติ
+    c.execute("PRAGMA table_info(messenger_booking)")
+    cols = [col[1] for col in c.fetchall()]
+    if "booking_time" not in cols:
+        c.execute("ALTER TABLE messenger_booking ADD COLUMN booking_time TEXT NOT NULL DEFAULT '09:00'")
+
     conn.commit()
     conn.close()
 
@@ -36,7 +44,10 @@ def add_booking(username, company, document_type, booking_date, booking_time):
 
 def get_all_bookings():
     conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC, booking_time DESC", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC, booking_time DESC", conn)
+    except Exception:
+        df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC", conn)
     conn.close()
     return df
 
@@ -58,7 +69,7 @@ def delete_booking(booking_id):
 def booking_form(username=""):
     st.subheader("🚚 แบบฟอร์มจอง Messenger")
 
-    # ✅ ใช้ setdefault ป้องกัน error
+    # ✅ ป้องกัน error ด้วย setdefault
     st.session_state.setdefault("company", "")
     st.session_state.setdefault("document_type", "")
     st.session_state.setdefault("booking_date", datetime.date.today())
@@ -73,6 +84,8 @@ def booking_form(username=""):
         if company and document_type:
             add_booking(username, company, document_type, str(booking_date), str(booking_time))
             st.success("✅ บันทึกการจองสำเร็จ")
+
+            # reset ค่าในฟอร์ม
             st.session_state["company"] = ""
             st.session_state["document_type"] = ""
             st.session_state["booking_date"] = datetime.date.today()
