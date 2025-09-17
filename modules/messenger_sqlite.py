@@ -16,6 +16,7 @@ def init_db():
             company TEXT NOT NULL,
             document_type TEXT NOT NULL,
             booking_date TEXT NOT NULL,
+            booking_time TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'รอจัดการ'
         )
     """)
@@ -23,19 +24,19 @@ def init_db():
     conn.close()
 
 # ============ DB Utils ============
-def add_booking(username, company, document_type, booking_date):
+def add_booking(username, company, document_type, booking_date, booking_time):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO messenger_booking (username, company, document_type, booking_date, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (username, company, document_type, booking_date, "รอจัดการ"))
+        INSERT INTO messenger_booking (username, company, document_type, booking_date, booking_time, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (username, company, document_type, booking_date, booking_time, "รอจัดการ"))
     conn.commit()
     conn.close()
 
 def get_all_bookings():
     conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC", conn)
+    df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date DESC, booking_time DESC", conn)
     conn.close()
     return df
 
@@ -57,19 +58,25 @@ def delete_booking(booking_id):
 def booking_form(username=""):
     st.subheader("🚚 แบบฟอร์มจอง Messenger")
 
-    # ✅ ใช้ setdefault ป้องกัน error StreamlitAPIException
+    # ✅ ใช้ setdefault ป้องกัน error
     st.session_state.setdefault("company", "")
     st.session_state.setdefault("document_type", "")
     st.session_state.setdefault("booking_date", datetime.date.today())
+    st.session_state.setdefault("booking_time", datetime.time(9, 0))
 
     company = st.text_input("ชื่อบริษัท", value=st.session_state["company"])
     document_type = st.text_input("ประเภทเอกสาร", value=st.session_state["document_type"])
     booking_date = st.date_input("วันที่ต้องการใช้ Messenger", value=st.session_state["booking_date"])
+    booking_time = st.time_input("เวลาที่ต้องการใช้ Messenger", value=st.session_state["booking_time"])
 
     if st.button("📌 ยืนยันการจอง"):
         if company and document_type:
-            add_booking(username, company, document_type, str(booking_date))
+            add_booking(username, company, document_type, str(booking_date), str(booking_time))
             st.success("✅ บันทึกการจองสำเร็จ")
+            st.session_state["company"] = ""
+            st.session_state["document_type"] = ""
+            st.session_state["booking_date"] = datetime.date.today()
+            st.session_state["booking_time"] = datetime.time(9, 0)
         else:
             st.warning("⚠️ กรุณากรอกข้อมูลให้ครบ")
 
@@ -92,12 +99,12 @@ def manage_bookings():
         if st.button("อัปเดตสถานะ"):
             update_status(int(booking_id), new_status)
             st.success("✅ อัปเดตสถานะเรียบร้อยแล้ว")
-            st.experimental_rerun()
+            st.rerun()
 
         if st.button("❌ ลบรายการ"):
             delete_booking(int(booking_id))
             st.warning("🗑️ ลบรายการเรียบร้อยแล้ว")
-            st.experimental_rerun()
+            st.rerun()
 
 # ============ Entry Point ============
 def program_messenger_booking(username=""):
