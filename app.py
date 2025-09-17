@@ -145,6 +145,13 @@ def main_app():
             username=st.session_state.get("username", "ไม่ระบุ"),
             role=st.session_state.get("role", "User")
         )
+    elif choice == "🏖️ ระบบลางาน":
+    from modules import leave_sqlite
+    leave_sqlite.program_leave_system(
+        username=st.session_state.get("username", "ไม่ระบุ"),
+        role=st.session_state.get("role", "User")
+    )
+
     elif choice == "⚙️ จัดการผู้ใช้" and role == "Admin":
         manage_users()
     elif choice == "🚪 ออกจากระบบ":
@@ -160,3 +167,4 @@ if not st.session_state["authenticated"]:
     st.stop()
 else:
     main_app()
+
