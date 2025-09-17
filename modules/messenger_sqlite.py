@@ -27,12 +27,25 @@ def init_db():
 def add_booking(username, company, document_type, booking_date, booking_time):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
+    # ✅ ตรวจสอบว่ามีการจองซ้ำในวัน+เวลาแล้วหรือยัง
+    c.execute("""
+        SELECT COUNT(*) FROM messenger_booking
+        WHERE booking_date=? AND booking_time=?
+    """, (booking_date, booking_time))
+    exists = c.fetchone()[0]
+
+    if exists > 0:
+        conn.close()
+        return False  # มีการจองซ้ำ
+
     c.execute("""
         INSERT INTO messenger_booking (username, company, document_type, booking_date, booking_time, status)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (username, company, document_type, booking_date, booking_time, "รอจัดการ"))
     conn.commit()
     conn.close()
+    return True
 
 def get_all_bookings():
     conn = sqlite3.connect(DB_FILE)
@@ -58,8 +71,11 @@ def booking_form(username="ไม่ระบุ"):
 
     if st.button("✨ ยืนยันการจอง"):
         if company and document_type:
-            add_booking(username, company, document_type, str(booking_date), booking_time)
-            st.success("✅ บันทึกการจองเรียบร้อยแล้ว")
+            success = add_booking(username, company, document_type, str(booking_date), booking_time)
+            if success:
+                st.success("✅ บันทึกการจองเรียบร้อยแล้ว")
+            else:
+                st.error("⚠️ เวลานี้มีการจองแล้ว กรุณาเลือกเวลาอื่น")
         else:
             st.error("⚠️ กรุณากรอกข้อมูลให้ครบ")
 
@@ -81,7 +97,7 @@ def manage_bookings():
 
 # ================= Calendar View =================
 def calendar_view():
-    st.subheader("📅 ปฏิทินการจอง Messenger (1 สัปดาห์)")
+    st.subheader("📅 ปฏิทินการจอง Messenger (จันทร์ - อาทิตย์)")
 
     df = get_all_bookings()
 
@@ -93,7 +109,8 @@ def calendar_view():
     time_slots = [f"{h:02d}:00" for h in range(7, 19)]
 
     today = datetime.date.today()
-    week_days = [today + datetime.timedelta(days=i) for i in range(7)]
+    monday = today - datetime.timedelta(days=today.weekday())  # หา "วันจันทร์" ของสัปดาห์นี้
+    week_days = [monday + datetime.timedelta(days=i) for i in range(7)]  # จันทร์-อาทิตย์
 
     # สร้างตารางว่าง
     calendar = pd.DataFrame(index=time_slots, columns=[d.strftime("%a %d/%m") for d in week_days])
