@@ -74,6 +74,16 @@ def get_leave_balance(username):
     c = conn.cursor()
     c.execute("SELECT * FROM leave_balance WHERE username=?", (username,))
     row = c.fetchone()
+
+    # ถ้ายังไม่มี quota → สร้างใหม่
+    if not row:
+        c.execute("""
+            INSERT INTO leave_balance (username) VALUES (?)
+        """, (username,))
+        conn.commit()
+        c.execute("SELECT * FROM leave_balance WHERE username=?", (username,))
+        row = c.fetchone()
+
     conn.close()
     return row
 
@@ -88,7 +98,19 @@ def request_leave_ui(username="ไม่ระบุ"):
 
     days = (end_date - start_date).days + 1
 
+    # quota
+    balance = get_leave_balance(username)
+    quota_map = {
+        "ลาป่วย": balance[2],
+        "ลากิจ": balance[3],
+        "ลาพักร้อน": balance[4],
+        "ลาคลอด": balance[5],
+        "ลาบวช": balance[6],
+    }
+
     if st.button("✅ ส่งคำขอลา"):
+        if quota_map.get(leave_type, 0) < days:
+            st.warning(f"⚠️ วันลาคงเหลือไม่พอ (เหลือ {quota_map.get(leave_type,0)} วัน) — หากอนุมัติจะถือเป็นลาโดยไม่รับค่าจ้าง")
         add_leave_request(username, leave_type, str(start_date), str(end_date), days, reason)
         st.success(f"🎉 ส่งคำขอลา {leave_type} สำเร็จ ({days} วัน)")
 
@@ -96,7 +118,7 @@ def manage_leave_requests_ui(role, approver="Admin"):
     st.subheader("📑 จัดการคำขอลางาน")
 
     df = get_all_requests()
-    if df.empty:
+    if df is None or df.empty:
         st.info("ยังไม่มีคำขอลา")
         return
 
@@ -118,6 +140,10 @@ def leave_calendar_view():
     week_days = [today + datetime.timedelta(days=i) for i in range(7)]
 
     df = get_all_requests()
+    if df is None or df.empty:
+        st.info("ยังไม่มีข้อมูลการลาในสัปดาห์นี้")
+        return
+
     table = {d.strftime("%a %d/%m"): [] for d in week_days}
 
     for _, row in df.iterrows():
@@ -126,6 +152,11 @@ def leave_calendar_view():
         for d in week_days:
             if start <= d <= end:
                 table[d.strftime("%a %d/%m")].append(f"{row['username']} ({row['leave_type']})")
+
+    # ป้องกัน error เวลาไม่มีข้อมูล
+    for k in table:
+        if not table[k]:
+            table[k] = ["-"]
 
     df_calendar = pd.DataFrame.from_dict(table, orient="index")
     st.dataframe(df_calendar, use_container_width=True)
