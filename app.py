@@ -141,7 +141,10 @@ def main_app():
     if choice == "📑 ระบบดาวน์โหลดใบเสร็จภาษี":
         tax_system.program_tax()
     elif choice == "🚚 จองคิวแมสเซ็นเจอร์":
-        messenger.program_messenger_booking()
+        messenger.program_messenger_booking(
+            username=st.session_state.get("username", "ไม่ระบุ"),
+            role=st.session_state.get("role", "User")
+        )
     elif choice == "⚙️ จัดการผู้ใช้" and role == "Admin":
         manage_users()
     elif choice == "🚪 ออกจากระบบ":
