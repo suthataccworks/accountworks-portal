@@ -44,6 +44,13 @@ def get_all_bookings():
     conn.close()
     return df
 
+def cancel_booking(booking_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
+    conn.commit()
+    conn.close()
+
 # ================= Booking Form =================
 def booking_form(username="ไม่ระบุ"):
     st.subheader("📋 แบบฟอร์มจอง Messenger")
@@ -103,14 +110,32 @@ def calendar_view():
     df_calendar = pd.DataFrame(table, index=times, columns=[d.strftime("%a %d/%m") for d in week_days])
     st.dataframe(df_calendar, use_container_width=True)
 
+# ================= Cancel Booking =================
+def cancel_booking_ui():
+    st.subheader("🗑 ยกเลิกการจอง Messenger")
+
+    df = get_all_bookings()
+    if df.empty:
+        st.info("ยังไม่มีการจอง")
+        return
+    
+    st.dataframe(df, use_container_width=True)
+
+    booking_id = st.number_input("กรอก ID ของการจองที่ต้องการยกเลิก", min_value=1, step=1)
+    if st.button("❌ ยกเลิกการจอง"):
+        cancel_booking(booking_id)
+        st.success(f"ลบการจอง ID {booking_id} เรียบร้อยแล้ว")
+
 # ================= Main Program =================
 def program_messenger_booking(username="ไม่ระบุ"):
     init_db()
     st.title("🚚 ระบบจอง Messenger")
 
-    menu = st.radio("เมนู", ["✍ จอง Messenger", "📅 ปฏิทินการจอง"], horizontal=True)
+    menu = st.radio("เมนู", ["✍ จอง Messenger", "📅 ปฏิทินการจอง", "🗑 ยกเลิกการจอง"], horizontal=True)
 
     if menu == "✍ จอง Messenger":
         booking_form(username=username)
-    else:
+    elif menu == "📅 ปฏิทินการจอง":
         calendar_view()
+    else:
+        cancel_booking_ui()
