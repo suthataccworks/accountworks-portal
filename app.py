@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from modules import tax_system, messenger_sqlite as messenger
 from modules import auth_sqlite   # ✅ ใช้ SQLite + bcrypt
+from modules import leave_sqlite  # ✅ โมดูลลางานใหม่
 
 # ============ CONFIG ============
 st.set_page_config(page_title="AccountWorks Portal", layout="wide")
@@ -130,11 +131,11 @@ def main_app():
     role = st.session_state.get("role", "User")
 
     if role == "Admin":
-        menu = ["📑 ระบบดาวน์โหลดใบเสร็จภาษี", "🚚 จองคิวแมสเซ็นเจอร์", "⚙️ จัดการผู้ใช้", "🚪 ออกจากระบบ"]
+        menu = ["📑 ระบบดาวน์โหลดใบเสร็จภาษี", "🚚 จองคิวแมสเซ็นเจอร์", "🏖️ ระบบลางาน", "⚙️ จัดการผู้ใช้", "🚪 ออกจากระบบ"]
     elif role == "Staff":
-        menu = ["📑 ระบบดาวน์โหลดใบเสร็จภาษี", "🚪 ออกจากระบบ"]
+        menu = ["📑 ระบบดาวน์โหลดใบเสร็จภาษี", "🏖️ ระบบลางาน", "🚪 ออกจากระบบ"]
     else:
-        menu = ["🚚 จองคิวแมสเซ็นเจอร์", "🚪 ออกจากระบบ"]
+        menu = ["🚚 จองคิวแมสเซ็นเจอร์", "🏖️ ระบบลางาน", "🚪 ออกจากระบบ"]
 
     choice = st.sidebar.radio("เลือกโปรแกรม", menu)
 
@@ -146,12 +147,10 @@ def main_app():
             role=st.session_state.get("role", "User")
         )
     elif choice == "🏖️ ระบบลางาน":
-    from modules import leave_sqlite
-    leave_sqlite.program_leave_system(
-        username=st.session_state.get("username", "ไม่ระบุ"),
-        role=st.session_state.get("role", "User")
-    )
-
+        leave_sqlite.program_leave_system(
+            username=st.session_state.get("username", "ไม่ระบุ"),
+            role=st.session_state.get("role", "User")
+        )
     elif choice == "⚙️ จัดการผู้ใช้" and role == "Admin":
         manage_users()
     elif choice == "🚪 ออกจากระบบ":
@@ -167,4 +166,3 @@ if not st.session_state["authenticated"]:
     st.stop()
 else:
     main_app()
-
