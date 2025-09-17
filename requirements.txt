@@ -7,3 +7,4 @@ webdriver-manager
 requests
 openpyxl
 bcrypt==4.0.1
+plotly
