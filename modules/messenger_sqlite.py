@@ -47,16 +47,12 @@ def get_all_bookings():
 def cancel_booking(booking_id, username, is_admin=False):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-
     if is_admin:
-        # Admin ลบได้ทุกการจอง
         c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
     else:
-        # User ธรรมดาลบได้เฉพาะของตัวเอง
         c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
-
     conn.commit()
-    affected = conn.total_changes  # เช็คว่ามี row ถูกลบจริงหรือไม่
+    affected = conn.total_changes
     conn.close()
     return affected > 0
 
@@ -71,7 +67,7 @@ def booking_form(username="ไม่ระบุ"):
     contact = st.text_input("📞 เบอร์ติดต่อ")
 
     booking_date = st.date_input("วันที่ต้องการใช้ Messenger", min_value=datetime.date.today())
-    booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger", 
+    booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger",
                                 [f"{h:02d}:00" for h in range(7, 19)])
 
     if st.button("✅ ยืนยันการจอง"):
@@ -129,15 +125,22 @@ def cancel_booking_ui(username, role="User"):
     if role != "Admin":
         df = df[df["username"] == username]
 
+    if df.empty:
+        st.info("คุณยังไม่มีการจองที่จะยกเลิก")
+        return
+
     st.dataframe(df, use_container_width=True)
 
-    booking_id = st.number_input("กรอก ID ของการจองที่ต้องการยกเลิก", min_value=1, step=1)
+    # ✅ เลือกจาก dropdown ไม่ต้องพิมพ์เอง
+    booking_id = st.selectbox("เลือกรายการที่จะยกเลิก", df["id"].tolist())
+
     if st.button("❌ ยกเลิกการจอง"):
         success = cancel_booking(booking_id, username, is_admin=(role == "Admin"))
         if success:
             st.success(f"ลบการจอง ID {booking_id} เรียบร้อยแล้ว")
+            st.experimental_rerun()
         else:
-            st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้ หรือ ID ไม่ถูกต้อง")
+            st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้")
 
 # ================= Main Program =================
 def program_messenger_booking(username="ไม่ระบุ", role="User"):
