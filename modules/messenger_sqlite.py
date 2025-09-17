@@ -44,12 +44,21 @@ def get_all_bookings():
     conn.close()
     return df
 
-def cancel_booking(booking_id):
+def cancel_booking(booking_id, username, is_admin=False):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
+
+    if is_admin:
+        # Admin ลบได้ทุกการจอง
+        c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
+    else:
+        # User ธรรมดาลบได้เฉพาะของตัวเอง
+        c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
+
     conn.commit()
+    affected = conn.total_changes  # เช็คว่ามี row ถูกลบจริงหรือไม่
     conn.close()
+    return affected > 0
 
 # ================= Booking Form =================
 def booking_form(username="ไม่ระบุ"):
@@ -66,7 +75,6 @@ def booking_form(username="ไม่ระบุ"):
                                 [f"{h:02d}:00" for h in range(7, 19)])
 
     if st.button("✅ ยืนยันการจอง"):
-        # ตรวจสอบว่ามีการจองซ้ำหรือยัง
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("""
@@ -93,7 +101,6 @@ def calendar_view():
     df = get_all_bookings()
     bookings = {(row["booking_date"], row["booking_time"]): row["company"] for _, row in df.iterrows()}
 
-    # สร้างตารางปฏิทิน
     table = []
     for t in times:
         row = []
@@ -111,23 +118,29 @@ def calendar_view():
     st.dataframe(df_calendar, use_container_width=True)
 
 # ================= Cancel Booking =================
-def cancel_booking_ui():
+def cancel_booking_ui(username, role="User"):
     st.subheader("🗑 ยกเลิกการจอง Messenger")
 
     df = get_all_bookings()
     if df.empty:
         st.info("ยังไม่มีการจอง")
         return
-    
+
+    if role != "Admin":
+        df = df[df["username"] == username]
+
     st.dataframe(df, use_container_width=True)
 
     booking_id = st.number_input("กรอก ID ของการจองที่ต้องการยกเลิก", min_value=1, step=1)
     if st.button("❌ ยกเลิกการจอง"):
-        cancel_booking(booking_id)
-        st.success(f"ลบการจอง ID {booking_id} เรียบร้อยแล้ว")
+        success = cancel_booking(booking_id, username, is_admin=(role == "Admin"))
+        if success:
+            st.success(f"ลบการจอง ID {booking_id} เรียบร้อยแล้ว")
+        else:
+            st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้ หรือ ID ไม่ถูกต้อง")
 
 # ================= Main Program =================
-def program_messenger_booking(username="ไม่ระบุ"):
+def program_messenger_booking(username="ไม่ระบุ", role="User"):
     init_db()
     st.title("🚚 ระบบจอง Messenger")
 
@@ -138,4 +151,4 @@ def program_messenger_booking(username="ไม่ระบุ"):
     elif menu == "📅 ปฏิทินการจอง":
         calendar_view()
     else:
-        cancel_booking_ui()
+        cancel_booking_ui(username, role)
