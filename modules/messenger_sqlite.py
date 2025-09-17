@@ -10,35 +10,44 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    # ✅ สร้างตารางเบื้องต้น (ไม่รวม booking_time)
+    # ✅ สร้างตารางพร้อมฟิลด์ใหม่ (pickup_location, dropoff_location, contact_phone)
     c.execute("""
         CREATE TABLE IF NOT EXISTS messenger_booking (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             company TEXT NOT NULL,
             document_type TEXT NOT NULL,
+            pickup_location TEXT NOT NULL,
+            dropoff_location TEXT NOT NULL,
+            contact_phone TEXT NOT NULL,
             booking_date TEXT NOT NULL,
+            booking_time TEXT NOT NULL DEFAULT '09:00',
             status TEXT NOT NULL DEFAULT 'รอจัดการ'
         )
     """)
 
-    # ✅ ตรวจสอบ schema ถ้าไม่มี booking_time → เพิ่ม column อัตโนมัติ
+    # ✅ migrate column ถ้า schema เก่า
     c.execute("PRAGMA table_info(messenger_booking)")
     cols = [col[1] for col in c.fetchall()]
-    if "booking_time" not in cols:
-        c.execute("ALTER TABLE messenger_booking ADD COLUMN booking_time TEXT NOT NULL DEFAULT '09:00'")
+    if "pickup_location" not in cols:
+        c.execute("ALTER TABLE messenger_booking ADD COLUMN pickup_location TEXT DEFAULT ''")
+    if "dropoff_location" not in cols:
+        c.execute("ALTER TABLE messenger_booking ADD COLUMN dropoff_location TEXT DEFAULT ''")
+    if "contact_phone" not in cols:
+        c.execute("ALTER TABLE messenger_booking ADD COLUMN contact_phone TEXT DEFAULT ''")
 
     conn.commit()
     conn.close()
 
 # ============ DB Utils ============
-def add_booking(username, company, document_type, booking_date, booking_time):
+def add_booking(username, company, document_type, pickup_location, dropoff_location, contact_phone, booking_date, booking_time):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO messenger_booking (username, company, document_type, booking_date, booking_time, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (username, company, document_type, booking_date, booking_time, "รอจัดการ"))
+        INSERT INTO messenger_booking 
+        (username, company, document_type, pickup_location, dropoff_location, contact_phone, booking_date, booking_time, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (username, company, document_type, pickup_location, dropoff_location, contact_phone, booking_date, booking_time, "รอจัดการ"))
     conn.commit()
     conn.close()
 
@@ -69,27 +78,20 @@ def delete_booking(booking_id):
 def booking_form(username=""):
     st.subheader("🚚 แบบฟอร์มจอง Messenger")
 
-    # ✅ ป้องกัน error ด้วย setdefault
-    st.session_state.setdefault("company", "")
-    st.session_state.setdefault("document_type", "")
-    st.session_state.setdefault("booking_date", datetime.date.today())
-    st.session_state.setdefault("booking_time", datetime.time(9, 0))
+    # ฟอร์ม
+    company = st.text_input("ชื่อบริษัท")
+    document_type = st.text_input("ประเภทเอกสาร")
+    pickup_location = st.text_input("📍 ตำแหน่งรับเอกสาร")
+    dropoff_location = st.text_input("📍 ตำแหน่งส่งเอกสาร")
+    contact_phone = st.text_input("📞 เบอร์ผู้ติดต่อ")
 
-    company = st.text_input("ชื่อบริษัท", value=st.session_state["company"])
-    document_type = st.text_input("ประเภทเอกสาร", value=st.session_state["document_type"])
-    booking_date = st.date_input("วันที่ต้องการใช้ Messenger", value=st.session_state["booking_date"])
-    booking_time = st.time_input("เวลาที่ต้องการใช้ Messenger", value=st.session_state["booking_time"])
+    booking_date = st.date_input("วันที่ต้องการใช้ Messenger", value=datetime.date.today())
+    booking_time = st.time_input("เวลาที่ต้องการใช้ Messenger", value=datetime.time(9, 0))
 
     if st.button("📌 ยืนยันการจอง"):
-        if company and document_type:
-            add_booking(username, company, document_type, str(booking_date), str(booking_time))
+        if company and document_type and pickup_location and dropoff_location and contact_phone:
+            add_booking(username, company, document_type, pickup_location, dropoff_location, contact_phone, str(booking_date), str(booking_time))
             st.success("✅ บันทึกการจองสำเร็จ")
-
-            # reset ค่าในฟอร์ม
-            st.session_state["company"] = ""
-            st.session_state["document_type"] = ""
-            st.session_state["booking_date"] = datetime.date.today()
-            st.session_state["booking_time"] = datetime.time(9, 0)
         else:
             st.warning("⚠️ กรุณากรอกข้อมูลให้ครบ")
 
