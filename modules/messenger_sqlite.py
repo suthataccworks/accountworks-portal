@@ -1,7 +1,9 @@
+# modules/messenger_sqlite.py
 import sqlite3
 import pandas as pd
 import streamlit as st
 import datetime
+from typing import Optional
 
 DB_FILE = "messenger_booking.db"
 
@@ -27,47 +29,78 @@ def init_db():
     conn.close()
 
 # ================= CRUD =================
-def add_booking(username, company, document_type, pickup, dropoff, contact, booking_date, booking_time):
+def add_booking(username: str, company: str, document_type: str,
+                pickup: str, dropoff: str, contact: str,
+                booking_date: str, booking_time: str) -> int:
+    """Insert booking and return inserted id."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO messenger_booking 
+        INSERT INTO messenger_booking
         (username, company, document_type, pickup_location, dropoff_location, contact_number, booking_date, booking_time, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (username, company, document_type, pickup, dropoff, contact, booking_date, booking_time, "รอจัดการ"))
     conn.commit()
+    inserted_id = c.lastrowid
     conn.close()
+    return inserted_id
 
-def get_all_bookings():
+def get_all_bookings() -> pd.DataFrame:
     conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date, booking_time", conn)
+    try:
+        df = pd.read_sql("SELECT * FROM messenger_booking ORDER BY booking_date, booking_time, id", conn)
+    except Exception:
+        df = pd.DataFrame(columns=["id","username","company","document_type","pickup_location","dropoff_location","contact_number","booking_date","booking_time","status"])
     conn.close()
     return df
 
-def cancel_booking(booking_id, username, is_admin=False):
+def get_booking_owner(booking_id: int) -> Optional[str]:
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT username FROM messenger_booking WHERE id=?", (booking_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def cancel_booking(booking_id: int, username: str, is_admin: bool = False) -> bool:
+    """
+    Try to cancel booking.
+    Return True if deleted, False otherwise.
+    Strong server-side check: if not admin, owner must match.
+    """
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    if is_admin:
-        # ✅ Admin ลบได้ทุกการจอง
-        c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
-    else:
-        # ✅ User ต้องเป็นเจ้าของจริง ๆ ถึงจะลบได้
-        c.execute("SELECT username FROM messenger_booking WHERE id=?", (booking_id,))
-        row = c.fetchone()
-        if not row or row[0] != username:
-            conn.close()
-            return False  # ❌ ไม่ใช่เจ้าของ → ลบไม่ได้
+    try:
+        # If not admin, ensure owner matches current username
+        if not is_admin:
+            c.execute("SELECT username FROM messenger_booking WHERE id=?", (booking_id,))
+            row = c.fetchone()
+            if not row:
+                conn.close()
+                return False  # not exists
+            owner = row[0]
+            if owner != username:
+                conn.close()
+                return False  # not allowed
 
-        c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
+            # proceed to delete only if owner matches
+            c.execute("DELETE FROM messenger_booking WHERE id=? AND username=?", (booking_id, username))
+        else:
+            # admin can delete any id
+            c.execute("DELETE FROM messenger_booking WHERE id=?", (booking_id,))
 
-    conn.commit()
-    affected = conn.total_changes
-    conn.close()
-    return affected > 0
+        affected = c.rowcount
+        conn.commit()
+        conn.close()
+        return affected > 0
+    except Exception:
+        conn.rollback()
+        conn.close()
+        return False
 
-# ================= Booking Form =================
-def booking_form(username="ไม่ระบุ"):
+# ================= Booking Form (UI) =================
+def booking_form(username: str = "ไม่ระบุ"):
     st.subheader("📋 แบบฟอร์มจอง Messenger")
 
     company = st.text_input("ชื่อบริษัท")
@@ -77,26 +110,22 @@ def booking_form(username="ไม่ระบุ"):
     contact = st.text_input("📞 เบอร์ติดต่อ")
 
     booking_date = st.date_input("วันที่ต้องการใช้ Messenger", min_value=datetime.date.today())
-    booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger",
-                                [f"{h:02d}:00" for h in range(7, 19)])
+    booking_time = st.selectbox("เวลาที่ต้องการใช้ Messenger", [f"{h:02d}:00" for h in range(7, 19)])
 
     if st.button("✅ ยืนยันการจอง"):
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("""
-            SELECT COUNT(*) FROM messenger_booking 
-            WHERE booking_date=? AND booking_time=?
-        """, (str(booking_date), booking_time))
+        c.execute("SELECT COUNT(*) FROM messenger_booking WHERE booking_date=? AND booking_time=?", (str(booking_date), booking_time))
         exists = c.fetchone()[0]
         conn.close()
 
         if exists > 0:
             st.error(f"❌ มีการจองแล้วในช่วง {booking_date} {booking_time}")
         else:
-            add_booking(username, company, document_type, pickup, dropoff, contact, str(booking_date), booking_time)
-            st.success(f"🎉 จอง Messenger สำเร็จสำหรับ {booking_date} {booking_time}")
+            new_id = add_booking(username, company, document_type, pickup, dropoff, contact, str(booking_date), booking_time)
+            st.success(f"🎉 จองสำเร็จ (ID: {new_id}) — {booking_date} {booking_time}")
 
-# ================= Calendar View =================
+# ================= Calendar View (UI) =================
 def calendar_view():
     st.subheader("📅 ปฏิทินการจอง Messenger (จันทร์ - อาทิตย์)")
 
@@ -105,7 +134,11 @@ def calendar_view():
     times = [f"{h:02d}:00" for h in range(7, 19)]
 
     df = get_all_bookings()
-    bookings = {(row["booking_date"], row["booking_time"]): row["company"] for _, row in df.iterrows()}
+    bookings = {}
+    for _, row in df.iterrows():
+        key = (row["booking_date"], row["booking_time"])
+        # show company (or username) in calendar
+        bookings[key] = f"{row.get('company') or row.get('username')}"
 
     table = []
     for t in times:
@@ -123,8 +156,8 @@ def calendar_view():
     df_calendar = pd.DataFrame(table, index=times, columns=[d.strftime("%a %d/%m") for d in week_days])
     st.dataframe(df_calendar, use_container_width=True)
 
-# ================= Cancel Booking =================
-def cancel_booking_ui(username, role="User"):
+# ================= Cancel Booking (UI) =================
+def cancel_booking_ui(username: str, role: str = "User"):
     st.subheader("🗑 ยกเลิกการจอง Messenger")
 
     df = get_all_bookings()
@@ -132,7 +165,7 @@ def cancel_booking_ui(username, role="User"):
         st.info("ยังไม่มีการจอง")
         return
 
-    # ✅ Filter UI: User ธรรมดาเห็นเฉพาะของตัวเอง
+    # UI filter: normal users see only their own bookings
     if role != "Admin":
         df = df[df["username"] == username]
 
@@ -142,40 +175,56 @@ def cancel_booking_ui(username, role="User"):
 
     today = datetime.date.today()
 
+    # Show each booking with clear owner and id; only allow cancel button when allowed
     for _, row in df.iterrows():
-        booking_day = datetime.datetime.strptime(row["booking_date"], "%Y-%m-%d").date()
+        try:
+            booking_day = datetime.datetime.strptime(str(row["booking_date"]), "%Y-%m-%d").date()
+        except Exception:
+            # If date stored in different format, skip parse error
+            booking_day = today
+
         is_past = booking_day < today
-        is_self = row["username"] == username
+        is_self = (row["username"] == username)
 
-        # ✅ สีพื้นหลัง
+        # background color
         if is_past:
-            bg = "#e0e0e0"  # เทา (หมดเวลา)
+            bg = "#f0f0f0"  # gray = past
         elif is_self:
-            bg = "#d1ffd1"  # เขียว (ของตัวเอง)
+            bg = "#e6ffec"  # light green = own
         else:
-            bg = "#ffd1d1"  # แดง (ของคนอื่น - Admin เท่านั้นเห็น)
+            bg = "#ffe6e6"  # light red = others (only admin can see)
 
-        with st.container():
-            st.markdown(
-                f"""
-                <div style='background-color:{bg}; padding:10px; border-radius:8px; margin-bottom:5px;'>
-                    🆔 {row['id']} | 👤 {row['username']} | 🏢 {row['company']} | 📄 {row['document_type']}  
-                    📅 {row['booking_date']} {row['booking_time']} | 📞 {row['contact_number']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            if not is_past:
-                if st.button("🗑 ยกเลิก", key=f"del_{row['id']}"):
-                    success = cancel_booking(row["id"], username, is_admin=(role == "Admin"))
-                    if success:
-                        st.success(f"ลบการจอง ID {row['id']} เรียบร้อยแล้ว")
-                        st.rerun()
-                    else:
-                        st.error("⚠️ คุณไม่มีสิทธิ์ยกเลิกการจองนี้")
+        # render
+        st.markdown(
+            f"""
+            <div style="background:{bg}; padding:10px; border-radius:8px; margin-bottom:6px;">
+                <strong>🆔 {int(row['id'])}</strong> |
+                👤 <strong>{row['username']}</strong> |
+                🏢 {row.get('company','-')} |
+                📄 {row.get('document_type','-')} |
+                📅 {row.get('booking_date','-')} {row.get('booking_time','-')} |
+                📞 {row.get('contact_number','-')}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Only allow cancellation for not-past bookings.
+        # For normal user, since df was filtered above, we only render user's bookings.
+        if not is_past:
+            key = f"cancel_{int(row['id'])}"
+            if st.button("🗑 ยกเลิก", key=key):
+                # SERVER-SIDE CHECK: cancel_booking will verify owner or admin
+                success = cancel_booking(int(row["id"]), username, is_admin=(role == "Admin"))
+                if success:
+                    st.success(f"ลบการจอง ID {int(row['id'])} เรียบร้อยแล้ว")
+                    # rerun to refresh UI
+                    st.experimental_rerun()
+                else:
+                    st.error("⚠️ ไม่สามารถยกเลิกได้ — คุณไม่มีสิทธิ์ หรือการจองหายไปแล้ว")
 
 # ================= Main Program =================
-def program_messenger_booking(username="ไม่ระบุ", role="User"):
+def program_messenger_booking(username: str = "ไม่ระบุ", role: str = "User"):
     init_db()
     st.title("🚚 ระบบจอง Messenger")
 
