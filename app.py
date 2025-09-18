@@ -129,7 +129,35 @@ def leave_form():
 # ================== USER MANAGEMENT ==================
 def user_management():
     st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
-    st.info("⏳ กำลังพัฒนา...")
+
+    # ค้นหา
+    keyword = st.text_input("🔍 ค้นหา Username")
+    role_filter = st.selectbox("กรองตาม Role", ["ทั้งหมด", "Admin", "User", "Staff"])
+    role_val = None if role_filter == "ทั้งหมด" else role_filter
+
+    users = auth.search_users(keyword, role_val)
+
+    # ซ่อนรหัส
+    for u in users:
+        u["Password"] = "******"
+
+    st.table(users)
+
+    st.divider()
+
+    # เพิ่มผู้ใช้ใหม่
+    st.markdown("### ➕ เพิ่มผู้ใช้ใหม่")
+    new_user = st.text_input("Username (ใหม่)")
+    new_pass = st.text_input("Password (ใหม่)", type="password")
+    new_role = st.selectbox("Role", ["Admin", "User", "Staff"], key="new_role")
+    if st.button("✅ เพิ่มผู้ใช้"):
+        ok, msg = auth.add_user(new_user, new_pass, new_role)
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
 
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
@@ -147,3 +175,4 @@ else:
         leave_form()
     elif st.session_state.page == "user_mgmt":
         user_management()
+
