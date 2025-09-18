@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from modules import tax_system, messenger_sqlite as messenger
-#from modules import auth_sqlite   # ✅ ใช้ SQLite + bcrypt
 from modules import leave_sqlite  # ✅ โมดูลลางานใหม่
 from modules import auth_supabase as auth_sqlite  # ✅ ใหม่
 # ============ CONFIG ============
@@ -166,4 +165,5 @@ if not st.session_state["authenticated"]:
     st.stop()
 else:
     main_app()
+
 
