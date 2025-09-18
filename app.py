@@ -1,10 +1,8 @@
 import streamlit as st
 from modules import auth_gsheet as auth
 
-# ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐")
 
-# แสดงชื่อระบบ
 st.title("🔐 AccountWorks Portal")
 
 # ================== Session State ==================
@@ -36,8 +34,10 @@ else:
     user = st.session_state.user
     st.success(f"✅ Logged in as {user['Username']} ({user['Role']})")
 
-    # แยกการแสดงผลตาม Role
-    if user["Role"].lower() == "admin":
+    # แยก Dashboard ตาม Role
+    role = user["Role"].lower()
+
+    if role == "admin":
         st.subheader("👩‍💻 Admin Dashboard")
         st.info("คุณสามารถจัดการผู้ใช้ได้ที่นี่")
 
@@ -65,15 +65,16 @@ else:
             else:
                 st.warning("⚠️ User not found")
 
-    elif user["Role"].lower() == "staff":
+    elif role == "staff":
         st.subheader("👷 Staff Dashboard")
-        st.info("หน้านี้สำหรับพนักงานทั่วไป")
+        st.info("หน้านี้สำหรับพนักงานทั่วไป เช่น ดูสิทธิ์การลา เช็ควันลา ฯลฯ")
 
-    elif user["Role"].lower() == "user":
+    elif role == "user":
         st.subheader("🙋 User Dashboard")
-        st.info("หน้านี้สำหรับผู้ใช้งานทั่วไป")
+        st.info("หน้านี้สำหรับผู้ใช้งานทั่วไป เช่น ดูข้อมูลส่วนตัว")
 
-    # Logout
+    # ปุ่ม Logout
+    st.divider()
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
