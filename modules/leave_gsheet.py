@@ -3,8 +3,7 @@ import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
 import datetime
 
-# ใส่ Spreadsheet ID ของ LeaveManagement
-# ดูได้จาก URL เช่น https://docs.google.com/spreadsheets/d/xxxxxxxxxxxxxxxxxxxx/edit#gid=0
+# Spreadsheet ID (ของ LeaveManagement)
 LEAVE_FILE_ID = "1P1dt1syrcOEW_AyM3-i-fCMzUeMtCMUxLUdOUfK5LaQ"
 
 def get_client():
@@ -27,16 +26,13 @@ def get_balance_sheet():
 # ----------- Submit Leave -----------
 def submit_leave(username, leave_type, start_date, end_date, reason):
     days = (datetime.datetime.fromisoformat(str(end_date)) - datetime.datetime.fromisoformat(str(start_date))).days + 1
-    
-    # ตรวจสอบวันลาคงเหลือก่อน
+
     if not check_leave_balance(username, leave_type, days):
         return False, f"❌ วันลาคงเหลือไม่พอ ({leave_type})"
 
-    # บันทึกคำขอลา
     leave_sheet = get_leave_sheet()
     leave_sheet.append_row([username, leave_type, str(start_date), str(end_date), reason, "Pending"])
 
-    # หักวันลาออกจาก Balance
     deduct_leave_balance(username, leave_type, days)
 
     return True, f"✅ ส่งคำขอลาเรียบร้อย ({days} วัน)"
@@ -45,7 +41,7 @@ def submit_leave(username, leave_type, start_date, end_date, reason):
 def check_leave_balance(username, leave_type, days):
     sheet = get_balance_sheet()
     records = sheet.get_all_records()
-    for i, row in enumerate(records, start=2):  # start=2 เพราะ row1 = header
+    for i, row in enumerate(records, start=2):
         if row["Username"] == username:
             if int(row[leave_type]) >= days:
                 return True
@@ -75,5 +71,5 @@ def update_leave_status(username, status):
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
         if row["Username"] == username and row["Status"] == "Pending":
-            sheet.update_cell(i, 6, status)  # col6 = Status
+            sheet.update_cell(i, 6, status)
             break
