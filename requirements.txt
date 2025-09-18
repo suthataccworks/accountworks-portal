@@ -8,3 +8,8 @@ requests
 openpyxl
 bcrypt==4.0.1
 plotly
+streamlit
+pandas
+psycopg2-binary
+bcrypt
+
