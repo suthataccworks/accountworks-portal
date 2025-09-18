@@ -28,6 +28,13 @@ st.markdown(
         margin: 30px auto;
         max-width: 700px;
     }
+    /* Main Menu */
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        margin-top: 40px;
+    }
     .menu-card {
         border-radius: 20px;
         padding: 30px;
@@ -42,13 +49,13 @@ st.markdown(
         box-shadow: 0 12px 25px rgba(0,0,0,0.2);
     }
     .menu-icon {
-        font-size: 50px;
-        margin-bottom: 10px;
+        font-size: 55px;
+        margin-bottom: 15px;
     }
     .menu-title {
-        font-size: 20px;
+        font-size: 22px;
         font-weight: bold;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
         color: #2c3e50;
     }
     .menu-desc {
@@ -122,16 +129,39 @@ else:
     elif st.session_state.page == "main":
         st.subheader("📌 Main Menu")
 
-        col1, col2 = st.columns([1,1])
+        # ใช้ HTML grid menu
+        st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-        with col1:
-            if st.button("🏖 ลางาน"):
-                st.session_state.page = "leave_form"
-                st.rerun()
+        # การ์ด ลางาน
+        if st.button("🏖 ไปยังลางาน", key="leave_btn", use_container_width=True):
+            st.session_state.page = "leave_form"
+            st.rerun()
+        st.markdown(
+            """
+            <div class="menu-card">
+                <div class="menu-icon">🏖</div>
+                <div class="menu-title">ลางาน</div>
+                <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลาคงเหลือ</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        with col2:
-            if st.button("📦 จองคิวแมสเซ็นเจอร์"):
-                st.info("⏳ กำลังพัฒนา...")
+        # การ์ด จองคิวแมสเซ็นเจอร์
+        if st.button("📦 ไปยังแมสเซ็นเจอร์", key="messenger_btn", use_container_width=True):
+            st.info("⏳ กำลังพัฒนา...")
+        st.markdown(
+            """
+            <div class="menu-card">
+                <div class="menu-icon">📦</div>
+                <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
+                <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.divider()
         colA, colB = st.columns([1,1])
