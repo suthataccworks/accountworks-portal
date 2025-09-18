@@ -3,7 +3,6 @@ import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
 import datetime
 
-# Spreadsheet ID (ของ LeaveManagement)
 LEAVE_FILE_ID = "1P1dt1syrcOEW_AyM3-i-fCMzUeMtCMUxLUdOUfK5LaQ"
 
 def get_client():
@@ -13,33 +12,30 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-# ----------- Leave Requests Sheet -----------
 def get_leave_sheet():
     client = get_client()
-    return client.open_by_key(LEAVE_FILE_ID).worksheet("LeaveRequests")
-
-# ----------- Employee Balance Sheet -----------
-def get_balance_sheet():
-    client = get_client()
-    return client.open_by_key(LEAVE_FILE_ID).worksheet("balance")
+    return client.open_by_key(LEAVE_FILE_ID).worksheet("LeaveManagement")  # ✅ ใช้แท็บเดียว
 
 # ----------- Submit Leave -----------
 def submit_leave(username, leave_type, start_date, end_date, reason):
     days = (datetime.datetime.fromisoformat(str(end_date)) - datetime.datetime.fromisoformat(str(start_date))).days + 1
 
+    # ตรวจสอบวันลาคงเหลือก่อน
     if not check_leave_balance(username, leave_type, days):
         return False, f"❌ วันลาคงเหลือไม่พอ ({leave_type})"
 
-    leave_sheet = get_leave_sheet()
-    leave_sheet.append_row([username, leave_type, str(start_date), str(end_date), reason, "Pending"])
+    # เพิ่มคำขอลาใน sheet (เพิ่มต่อท้าย)
+    sheet = get_leave_sheet()
+    sheet.append_row([username, leave_type, str(start_date), str(end_date), reason, "Pending"])
 
+    # หักวันลาออกจาก Balance
     deduct_leave_balance(username, leave_type, days)
 
     return True, f"✅ ส่งคำขอลาเรียบร้อย ({days} วัน)"
 
 # ----------- Check Leave Balance -----------
 def check_leave_balance(username, leave_type, days):
-    sheet = get_balance_sheet()
+    sheet = get_leave_sheet()
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
         if row["Username"] == username:
@@ -51,7 +47,7 @@ def check_leave_balance(username, leave_type, days):
 
 # ----------- Deduct Leave Balance -----------
 def deduct_leave_balance(username, leave_type, days):
-    sheet = get_balance_sheet()
+    sheet = get_leave_sheet()
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
         if row["Username"] == username:
@@ -59,27 +55,3 @@ def deduct_leave_balance(username, leave_type, days):
             col_index = list(row.keys()).index(leave_type) + 1
             sheet.update_cell(i, col_index, new_value)
             break
-
-# ----------- Get All Leaves -----------
-def get_all_leaves():
-    sheet = get_leave_sheet()
-    return sheet.get_all_records()
-
-# ----------- Update Status -----------
-def update_leave_status(username, status):
-    sheet = get_leave_sheet()
-    records = sheet.get_all_records()
-    for i, row in enumerate(records, start=2):
-        if row["Username"] == username and row["Status"] == "Pending":
-            sheet.update_cell(i, 6, status)  # col6 = Status
-            break
-
-# ----------- Update Reason (เฉพาะ User เจ้าของ) -----------
-def update_leave_reason(username, start_date, new_reason):
-    sheet = get_leave_sheet()
-    records = sheet.get_all_records()
-    for i, row in enumerate(records, start=2):
-        if row["Username"] == username and str(row["StartDate"]) == str(start_date):
-            sheet.update_cell(i, 5, new_reason)  # col5 = Reason
-            break
-
