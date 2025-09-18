@@ -71,5 +71,15 @@ def update_leave_status(username, status):
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
         if row["Username"] == username and row["Status"] == "Pending":
-            sheet.update_cell(i, 6, status)
+            sheet.update_cell(i, 6, status)  # col6 = Status
             break
+
+# ----------- Update Reason (เฉพาะ User เจ้าของ) -----------
+def update_leave_reason(username, start_date, new_reason):
+    sheet = get_leave_sheet()
+    records = sheet.get_all_records()
+    for i, row in enumerate(records, start=2):
+        if row["Username"] == username and str(row["StartDate"]) == str(start_date):
+            sheet.update_cell(i, 5, new_reason)  # col5 = Reason
+            break
+
