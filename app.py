@@ -6,23 +6,6 @@ from modules import leave_gsheet
 # ================== CONFIG ==================
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
-# ================== CSS ==================
-st.markdown("""
-    <style>
-    body {
-        background: linear-gradient(135deg, #f9f9f9 0%, #e3f2fd 100%);
-        font-family: "Segoe UI", sans-serif;
-    }
-    .portal-title {
-        text-align:center;
-        font-size:36px;
-        font-weight:800;
-        color:#2c3e50;
-        margin-bottom: 30px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # ================== SESSION ==================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -32,7 +15,7 @@ if "page" not in st.session_state:
 
 # ================== LOGIN ==================
 def login_page():
-    st.markdown("<div class='portal-title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>🔐 AccountWorks Portal</h2>", unsafe_allow_html=True)
     st.subheader("เข้าสู่ระบบ")
 
     with st.form("login_form", clear_on_submit=True):
@@ -67,11 +50,11 @@ def welcome_page():
 
     col1, col2 = st.columns([1,1])
     with col1:
-        if st.button("➡️ เข้าสู่เมนูหลัก", use_container_width=True):
+        if st.button("➡️ เข้าสู่เมนูหลัก"):
             st.session_state.page = "main"
             st.rerun()
     with col2:
-        if st.button("🚪 Logout", use_container_width=True, key="logout1"):
+        if st.button("🚪 Logout"):
             st.session_state.logged_in = False
             st.session_state.user = None
             st.session_state.page = "login"
@@ -79,13 +62,13 @@ def welcome_page():
 
 # ================== MAIN MENU ==================
 def main_menu():
-    st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>📌 Main Menu</h2>", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         if st.button("🏖 ลางาน", use_container_width=True):
-            st.session_state.page = "leave"
+            st.session_state.page = "leave_form"
             st.rerun()
 
     with col2:
@@ -93,19 +76,19 @@ def main_menu():
             st.info("⏳ กำลังพัฒนา...")
 
     with col3:
-        if st.session_state.user["Role"].lower() in ["admin", "manager"]:
-            if st.button("📝 ตรวจสอบการลา", use_container_width=True):
-                st.session_state.page = "leave_admin"
+        if st.session_state.user["Role"].lower() == "admin":
+            if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
+                st.session_state.page = "user_mgmt"
                 st.rerun()
 
     st.divider()
-    colA, colB, colC = st.columns([1,1,1])
-    with colB:
-        if st.button("🚪 Logout", use_container_width=True, key="logout2"):
-            st.session_state.logged_in = False
-            st.session_state.user = None
-            st.session_state.page = "login"
-            st.rerun()
+    st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+    if st.button("🚪 Logout", key="logout_center"):
+        st.session_state.logged_in = False
+        st.session_state.user = None
+        st.session_state.page = "login"
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ================== LEAVE FORM ==================
 def leave_form():
@@ -116,45 +99,39 @@ def leave_form():
     end_date = st.date_input("วันที่สิ้นสุด")
     reason = st.text_area("เหตุผลการลา")
 
-    if st.button("✅ ส่งคำขอลา", use_container_width=True):
-        leave_gsheet.submit_leave(
+    if "leave_submitted" not in st.session_state:
+        st.session_state.leave_submitted = False
+        st.session_state.leave_message = ""
+
+    if st.button("✅ ส่งคำขอลา"):
+        success, msg = leave_gsheet.submit_leave(
             st.session_state.user["Username"],
             leave_type,
-            str(start_date),
-            str(end_date),
+            start_date,
+            end_date,
             reason
         )
-        st.success("📌 ส่งคำขอลาเรียบร้อยแล้ว (รอหัวหน้าอนุมัติ)")
-        st.session_state.page = "main"
-        st.rerun()
+        st.session_state.leave_submitted = True
+        st.session_state.leave_message = msg
 
-    if st.button("⬅️ กลับเมนูหลัก", use_container_width=True):
-        st.session_state.page = "main"
-        st.rerun()
+    if st.session_state.leave_submitted:
+        if "✅" in st.session_state.leave_message:
+            st.success(st.session_state.leave_message)
+        else:
+            st.error(st.session_state.leave_message)
 
-# ================== LEAVE ADMIN (Approve) ==================
-def leave_admin():
-    st.subheader("📝 ตรวจสอบการลา (สำหรับหัวหน้า/Admin)")
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.session_state.leave_submitted = False
+            st.session_state.leave_message = ""
+            st.rerun()
 
-    leaves = leave_gsheet.get_all_leaves()
-    if not leaves:
-        st.info("✅ ยังไม่มีคำขอลา")
-    else:
-        st.table(leaves)
+# ================== USER MANAGEMENT ==================
+def user_management():
+    st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
+    st.info("⏳ กำลังพัฒนา...")
 
-    approve_user = st.text_input("ชื่อผู้ใช้ที่ต้องการอนุมัติ")
-    if st.button("✅ อนุมัติ"):
-        leave_gsheet.update_leave_status(approve_user, "Approved")
-        st.success(f"✅ อนุมัติการลา {approve_user} แล้ว")
-        st.rerun()
-
-    reject_user = st.text_input("ชื่อผู้ใช้ที่ต้องการปฏิเสธ")
-    if st.button("❌ ปฏิเสธ"):
-        leave_gsheet.update_leave_status(reject_user, "Rejected")
-        st.warning(f"❌ ปฏิเสธการลา {reject_user} แล้ว")
-        st.rerun()
-
-    if st.button("⬅️ กลับเมนูหลัก", use_container_width=True):
+    if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
 
@@ -166,7 +143,7 @@ else:
         welcome_page()
     elif st.session_state.page == "main":
         main_menu()
-    elif st.session_state.page == "leave":
+    elif st.session_state.page == "leave_form":
         leave_form()
-    elif st.session_state.page == "leave_admin":
-        leave_admin()
+    elif st.session_state.page == "user_mgmt":
+        user_management()
