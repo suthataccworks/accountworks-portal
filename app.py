@@ -6,6 +6,62 @@ from modules import auth_gsheet as auth
 # ========== CONFIG ==========
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
+# CSS Custom
+st.markdown("""
+    <style>
+    body {
+        background: linear-gradient(135deg, #f9f9f9 0%, #e3f2fd 100%);
+        font-family: "Segoe UI", sans-serif;
+    }
+    .portal-title {
+        text-align:center;
+        font-size:38px;
+        font-weight:800;
+        color:#2c3e50;
+        margin-bottom: 30px;
+    }
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 25px;
+        margin-top: 30px;
+    }
+    .menu-card {
+        background: white;
+        padding: 30px;
+        border-radius: 18px;
+        text-align: center;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .menu-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .menu-icon {
+        font-size: 55px;
+        margin-bottom: 15px;
+    }
+    .menu-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    .menu-desc {
+        font-size: 14px;
+        color: #555;
+        margin-top: 5px;
+    }
+    .logout-btn {
+        background: #e74c3c;
+        color: white !important;
+        border-radius: 10px;
+        padding: 8px 18px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 
 # ========== SESSION ==========
 if "logged_in" not in st.session_state:
@@ -15,14 +71,14 @@ if "page" not in st.session_state:
     st.session_state.page = "login"
 
 
-# ========== UI: LOGIN ==========
+# ========== LOGIN ==========
 def login_page():
-    st.title("🔐 AccountWorks Portal")
-    st.subheader("กรุณาเข้าสู่ระบบ")
+    st.markdown("<div class='portal-title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
+    st.subheader("เข้าสู่ระบบ")
 
     with st.form("login_form", clear_on_submit=True):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        username = st.text_input("👤 Username")
+        password = st.text_input("🔑 Password", type="password")
         submitted = st.form_submit_button("Login")
 
     if submitted:
@@ -36,63 +92,81 @@ def login_page():
             st.error("❌ Username หรือ Password ไม่ถูกต้อง")
 
 
-# ========== UI: WELCOME ==========
+# ========== WELCOME ==========
 def welcome_page():
     user = st.session_state.user
     st.markdown(
         f"""
         <div style="text-align:center; padding:40px;
             background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius:20px; color:white; margin:30px auto; max-width:700px;">
-            <h1>👋 ยินดีต้อนรับ {user['Username']}</h1>
-            <p style="font-size:18px;">Role ของคุณคือ <b>{user['Role']}</b></p>
+            border-radius:20px; color:white; margin:30px auto; max-width:750px;">
+            <h1>👋 สวัสดีคุณ {user['Username']}</h1>
+            <p style="font-size:18px;">Role: <b>{user['Role']}</b></p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1,1])
     with col1:
         if st.button("➡️ เข้าสู่เมนูหลัก"):
             st.session_state.page = "main"
             st.rerun()
     with col2:
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", key="logout1"):
             st.session_state.logged_in = False
             st.session_state.user = None
             st.session_state.page = "login"
             st.rerun()
 
 
-# ========== UI: MAIN MENU ==========
+# ========== MAIN MENU ==========
 def main_menu():
-    st.subheader("📌 Main Menu")
+    st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🏖 ลางาน"):
-            st.session_state.page = "leave_form"
-            st.rerun()
+    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-    with col2:
-        if st.button("📦 จองคิวแมสเซ็นเจอร์"):
-            st.info("⏳ กำลังพัฒนา...")
+    st.markdown(f"""
+        <div class="menu-card" onclick="window.parent.streamlitSend('leave_form')">
+            <div class="menu-icon">🏖</div>
+            <div class="menu-title">ลางาน</div>
+            <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลา</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+        <div class="menu-card" onclick="window.parent.streamlitSend('messenger')">
+            <div class="menu-icon">📦</div>
+            <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
+            <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
+        </div>
+    """, unsafe_allow_html=True)
 
     if st.session_state.user["Role"].lower() == "admin":
-        if st.button("⚙️ จัดการผู้ใช้ (Admin)"):
-            st.session_state.page = "user_mgmt"
-            st.rerun()
+        st.markdown(f"""
+            <div class="menu-card" onclick="window.parent.streamlitSend('user_mgmt')">
+                <div class="menu-icon">⚙️</div>
+                <div class="menu-title">จัดการผู้ใช้</div>
+                <div class="menu-desc">เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
-    if st.button("⬅️ กลับไปหน้า Welcome"):
+    if st.button("⬅️ กลับ Welcome"):
         st.session_state.page = "welcome"
+        st.rerun()
+    if st.button("🚪 Logout", key="logout2"):
+        st.session_state.logged_in = False
+        st.session_state.user = None
+        st.session_state.page = "login"
         st.rerun()
 
 
-# ========== UI: LEAVE FORM ==========
+# ========== LEAVE FORM ==========
 def leave_form():
     st.subheader("🏖 แบบฟอร์มการลา")
-
     leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
     start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
     end_date = st.date_input("วันที่สิ้นสุด")
@@ -108,7 +182,7 @@ def leave_form():
         st.rerun()
 
 
-# ========== UI: USER MANAGEMENT ==========
+# ========== USER MANAGEMENT ==========
 def user_management():
     st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
 
