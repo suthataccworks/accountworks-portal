@@ -1,67 +1,40 @@
-import psycopg2
+from supabase import create_client, Client
 import os
 import bcrypt
 
-# ดึงค่าจาก Environment Variables (ไปตั้งค่าใน Streamlit Cloud หรือ .env)
-DB_URL = os.getenv("SUPABASE_DB_URL")
+# ดึงค่าจาก Streamlit Secrets
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def get_connection():
-    # ✅ ตรวจสอบว่ามี sslmode หรือยัง
-    if "?sslmode=require" not in DB_URL:
-        dsn = f"{DB_URL}?sslmode=require"
-    else:
-        dsn = DB_URL
-    return psycopg2.connect(dsn)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    # Supabase เราสร้างตารางแล้ว เลยไม่ต้องทำอะไร
+    # Supabase มีตารางอยู่แล้ว ไม่ต้องทำอะไร
     pass
 
-# ---------------- USER FUNCTIONS ----------------
-
 def add_user(username, password, role="User"):
-    """เพิ่มผู้ใช้ใหม่ โดยเข้ารหัส password ด้วย bcrypt"""
-    conn = get_connection()
-    cur = conn.cursor()
+    """เพิ่มผู้ใช้ใหม่ (เข้ารหัสด้วย bcrypt)"""
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
-                (username, hashed, role))
-    conn.commit()
-    conn.close()
+    supabase.table("users").insert({"username": username, "password": hashed, "role": role}).execute()
 
 def get_user(username, password):
-    """ตรวจสอบ user โดยเปรียบเทียบ bcrypt hash"""
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, username, password, role FROM users WHERE username=%s", (username,))
-    user = cur.fetchone()
-    conn.close()
-
-    if user and bcrypt.checkpw(password.encode("utf-8"), user[2].encode("utf-8")):
-        return user
+    """ตรวจสอบ user โดยเปรียบเทียบ bcrypt"""
+    result = supabase.table("users").select("*").eq("username", username).execute()
+    if result.data:
+        user = result.data[0]
+        if bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
+            return (user["id"], user["username"], user["password"], user["role"])
     return None
 
 def get_all_users():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, username, role FROM users")
-    users = cur.fetchall()
-    conn.close()
-    return users
+    """คืนค่า (id, username, role) ของผู้ใช้ทั้งหมด"""
+    result = supabase.table("users").select("id, username, role").execute()
+    return [(u["id"], u["username"], u["role"]) for u in result.data]
 
 def delete_user(username):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM users WHERE username=%s", (username,))
-    conn.commit()
-    conn.close()
+    supabase.table("users").delete().eq("username", username).execute()
 
 def update_user(username, new_password, new_role):
-    """อัปเดตรหัสผ่าน + role"""
-    conn = get_connection()
-    cur = conn.cursor()
+    """อัปเดต password + role"""
     hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    cur.execute("UPDATE users SET password=%s, role=%s WHERE username=%s",
-                (hashed, new_role, username))
-    conn.commit()
-    conn.close()
+    supabase.table("users").update({"password": hashed, "role": new_role}).eq("username", username).execute()
