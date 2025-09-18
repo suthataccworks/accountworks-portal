@@ -1,40 +1,15 @@
-from supabase import create_client, Client
-import os
-import bcrypt
+import streamlit as st
+from supabase import create_client
 
-# ดึงค่าจาก Streamlit Secrets
-SUPABASE_URL = os.getenv("https://uvrraxjfwmhxqjhklpdu.supabase.co")
-SUPABASE_KEY = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2cnJ4YWpmd21ocXhqaGtscGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxNTk0NjgsImV4cCI6MjA3MzczNTQ2OH0.ZT8xi4UFB2hFpnwy9HO7E4g3sbVCMqs7bwPWGpbpetM")
+# อ่านค่าจาก Streamlit Secrets (แทน .env)
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("❌ Missing SUPABASE_URL or SUPABASE_KEY in Streamlit secrets")
 
-def init_db():
-    # Supabase มีตารางอยู่แล้ว ไม่ต้องทำอะไร
-    pass
-
-def add_user(username, password, role="User"):
-    """เพิ่มผู้ใช้ใหม่ (เข้ารหัสด้วย bcrypt)"""
-    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    supabase.table("users").insert({"username": username, "password": hashed, "role": role}).execute()
-
-def get_user(username, password):
-    """ตรวจสอบ user โดยเปรียบเทียบ bcrypt"""
-    result = supabase.table("users").select("*").eq("username", username).execute()
-    if result.data:
-        user = result.data[0]
-        if bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            return (user["id"], user["username"], user["password"], user["role"])
-    return None
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_all_users():
-    """คืนค่า (id, username, role) ของผู้ใช้ทั้งหมด"""
     result = supabase.table("users").select("id, username, role").execute()
-    return [(u["id"], u["username"], u["role"]) for u in result.data]
-
-def delete_user(username):
-    supabase.table("users").delete().eq("username", username).execute()
-
-def update_user(username, new_password, new_role):
-    """อัปเดต password + role"""
-    hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    supabase.table("users").update({"password": hashed, "role": new_role}).eq("username", username).execute()
+    return result.data
