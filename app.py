@@ -28,14 +28,15 @@ st.markdown(
         margin: 30px auto;
         max-width: 700px;
     }
-    /* ✅ Responsive Menu */
     .menu-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 25px;
-        margin-top: 30px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
     }
     .menu-card {
+        flex: 1 1 calc(50% - 20px);
+        max-width: 300px;
         border-radius: 20px;
         padding: 30px;
         background: white;
@@ -49,20 +50,24 @@ st.markdown(
         box-shadow: 0 12px 25px rgba(0,0,0,0.2);
     }
     .menu-icon {
-        font-size: 55px;
-        margin-bottom: 15px;
+        font-size: 50px;
+        margin-bottom: 10px;
     }
     .menu-title {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: bold;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
         color: #2c3e50;
     }
     .menu-desc {
         font-size: 14px;
         color: #555;
     }
-    a { text-decoration: none; color: inherit; }
+    @media (max-width: 768px) {
+        .menu-card {
+            flex: 1 1 100%;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -130,34 +135,24 @@ else:
     elif st.session_state.page == "main":
         st.subheader("📌 Main Menu")
 
-        # ✅ Responsive menu การ์ด
-        menu_html = """
-            <div class="menu-grid">
-                <div onclick="window.parent.streamlitSend('leave_form')" class="menu-card">
-                    <div class="menu-icon">🏖</div>
-                    <div class="menu-title">ลางาน</div>
-                    <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลาคงเหลือ</div>
-                </div>
-                <div onclick="window.parent.streamlitSend('messenger')" class="menu-card">
-                    <div class="menu-icon">📦</div>
-                    <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
-                    <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
-                </div>
-        """
+        st.markdown("<div class='menu-grid'>", unsafe_allow_html=True)
 
-        # ✅ ถ้า Role เป็น Admin → เพิ่มเมนู "จัดการผู้ใช้"
-        if user["Role"].lower() == "admin":
-            menu_html += """
-                <div onclick="window.parent.streamlitSend('user_mgmt')" class="menu-card">
-                    <div class="menu-icon">⚙️</div>
-                    <div class="menu-title">จัดการผู้ใช้</div>
-                    <div class="menu-desc">เพิ่ม/ลบ/แก้ไข ผู้ใช้งานในระบบ</div>
-                </div>
-            """
+        # Leave
+        if st.button("🏖 ลางาน", key="leave", use_container_width=True):
+            st.session_state.page = "leave_form"
+            st.rerun()
 
-        menu_html += "</div>"  # ปิด grid
+        # Messenger
+        if st.button("📦 จองคิวแมสเซ็นเจอร์", key="messenger", use_container_width=True):
+            st.info("⏳ กำลังพัฒนา...")
 
-        st.markdown(menu_html, unsafe_allow_html=True)
+        # User Management (Admin only)
+        if user["Role"] == "Admin":
+            if st.button("⚙️ จัดการผู้ใช้", key="user_mgmt", use_container_width=True):
+                st.session_state.page = "user_mgmt"
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
         colA, colB = st.columns([1,1])
@@ -194,10 +189,39 @@ else:
             st.session_state.page = "main"
             st.rerun()
 
-    # ----------- User Management (เฉพาะ Admin) -----------
+    # ----------- User Management (Admin Only) -----------
     elif st.session_state.page == "user_mgmt":
         st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
-        st.info("⏳ หน้านี้เอาไว้เพิ่ม/ลบผู้ใช้ (จะเชื่อม Google Sheet ภายหลัง)")
+
+        users = auth.get_all_users()
+        st.table(users)
+
+        st.markdown("### ➕ เพิ่มผู้ใช้ใหม่")
+        new_user = st.text_input("Username (ใหม่)")
+        new_pass = st.text_input("Password (ใหม่)", type="password")
+        new_role = st.selectbox("Role", ["Admin", "User", "Staff"])
+        if st.button("✅ เพิ่มผู้ใช้"):
+            auth.add_user(new_user, new_pass, new_role)
+            st.success("เพิ่มผู้ใช้เรียบร้อยแล้ว ✅")
+            st.rerun()
+
+        st.markdown("### 📝 อัปเดตผู้ใช้")
+        target_user = st.text_input("เลือก Username ที่ต้องการแก้ไข")
+        upd_pass = st.text_input("รหัสผ่านใหม่", type="password")
+        upd_role = st.selectbox("Role ใหม่", ["Admin", "User", "Staff"], key="upd_role")
+        if st.button("💾 บันทึกการแก้ไข"):
+            auth.update_user(target_user, upd_pass, upd_role)
+            st.success("อัปเดตผู้ใช้เรียบร้อย ✅")
+            st.rerun()
+
+        st.markdown("### ❌ ลบผู้ใช้")
+        del_user = st.text_input("Username ที่ต้องการลบ")
+        if st.button("🗑 ลบผู้ใช้"):
+            auth.delete_user(del_user)
+            st.warning(f"ลบผู้ใช้ {del_user} เรียบร้อยแล้ว")
+            st.rerun()
+
+        st.divider()
         if st.button("⬅️ กลับเมนูหลัก"):
             st.session_state.page = "main"
             st.rerun()
