@@ -9,6 +9,8 @@ st.title("🔐 AccountWorks Portal")
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user = None
+if "page" not in st.session_state:
+    st.session_state.page = "welcome"   # ค่าเริ่มต้น
 
 # ================== Login Form ==================
 if not st.session_state.logged_in:
@@ -24,6 +26,7 @@ if not st.session_state.logged_in:
         if user:
             st.session_state.logged_in = True
             st.session_state.user = user
+            st.session_state.page = "welcome"
             st.rerun()
         else:
             st.error("❌ Invalid username or password")
@@ -33,67 +36,58 @@ else:
     user = st.session_state.user
     role = user["Role"].lower()
 
-    # Welcome Banner (ใช้ทุก role)
-    st.markdown(
-        f"""
-        <div style="
-            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        ">
-            <h1 style="margin-bottom: 10px;">👋 ยินดีต้อนรับ</h1>
-            <h2 style="margin-top: 0;">{user['Username']}</h2>
-            <p style="font-size:18px;">Role ของคุณคือ <b>{user['Role']}</b></p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # ----------- Welcome Page -----------
+    if st.session_state.page == "welcome":
+        st.markdown(
+            f"""
+            <div style="
+                background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+                padding: 40px;
+                border-radius: 20px;
+                text-align: center;
+                color: white;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            ">
+                <h1 style="margin-bottom: 10px;">👋 ยินดีต้อนรับ</h1>
+                <h2 style="margin-top: 0;">{user['Username']}</h2>
+                <p style="font-size:18px;">Role ของคุณคือ <b>{user['Role']}</b></p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-    st.divider()
+        st.divider()
+        if st.button("➡️ เข้าสู่เมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
 
-    # ================== Role-based Dashboard ==================
-    if role == "admin":
-        st.subheader("👩‍💻 Admin Dashboard")
-        st.info("คุณสามารถจัดการผู้ใช้ได้ที่นี่")
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            st.session_state.page = "welcome"
+            st.rerun()
 
-        # Add user
-        st.markdown("### ➕ Add New User")
-        new_user = st.text_input("New Username")
-        new_pass = st.text_input("New Password")
-        new_role = st.selectbox("Role", ["Admin", "User", "Staff"])
+    # ----------- Main Menu -----------
+    elif st.session_state.page == "main":
+        st.subheader("📌 Main Menu")
 
-        if st.button("Add User"):
-            if new_user and new_pass:
-                auth.add_user(new_user, new_pass, new_role)
-                st.success(f"✅ Added {new_user}")
-                st.rerun()
-            else:
-                st.warning("⚠️ Please fill username and password")
+        col1, col2 = st.columns(2)
 
-        # Delete user
-        st.markdown("### 🗑 Delete User")
-        del_user = st.text_input("Delete Username")
-        if st.button("Delete User"):
-            if auth.delete_user(del_user):
-                st.success(f"🗑 Deleted {del_user}")
-                st.rerun()
-            else:
-                st.warning("⚠️ User not found")
+        with col1:
+            if st.button("🏖 ลางาน"):
+                st.info("👉 (ตรงนี้จะลิงก์ไปเมนูลางานในอนาคต)")
 
-    elif role == "staff":
-        st.subheader("👷 Staff Dashboard")
-        st.info("หน้านี้สำหรับพนักงานทั่วไป เช่น ดูสิทธิ์การลา เช็ควันลา ฯลฯ")
+        with col2:
+            if st.button("📦 จองคิวแมสเซ็นเจอร์"):
+                st.info("👉 (ตรงนี้จะลิงก์ไปเมนูจองแมสในอนาคต)")
 
-    elif role == "user":
-        st.subheader("🙋 User Dashboard")
-        st.info("หน้านี้สำหรับผู้ใช้งานทั่วไป เช่น ดูข้อมูลส่วนตัว")
+        st.divider()
+        if st.button("⬅️ กลับไปหน้า Welcome"):
+            st.session_state.page = "welcome"
+            st.rerun()
 
-    # ================== Logout ==================
-    st.divider()
-    if st.button("🚪 Logout"):
-        st.session_state.logged_in = False
-        st.session_state.user = None
-        st.rerun()
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            st.session_state.page = "welcome"
+            st.rerun()
