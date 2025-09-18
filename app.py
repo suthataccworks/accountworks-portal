@@ -19,32 +19,53 @@ st.markdown("""
         color:#2c3e50;
         margin-bottom: 30px;
     }
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 30px;
+        margin-top: 40px;
+    }
     .menu-card {
         background: white;
-        padding: 30px;
+        padding: 40px 20px;
         border-radius: 18px;
         text-align: center;
         box-shadow: 0 6px 18px rgba(0,0,0,0.08);
         transition: all 0.3s ease;
         cursor: pointer;
+        height: 200px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     .menu-card:hover {
         transform: translateY(-8px);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.15);
     }
     .menu-icon {
-        font-size: 50px;
-        margin-bottom: 12px;
+        font-size: 60px;
+        margin-bottom: 15px;
     }
     .menu-title {
-        font-size: 20px;
+        font-size: 22px;
         font-weight: bold;
-        margin-bottom: 5px;
         color: #2c3e50;
+        margin-bottom: 8px;
     }
     .menu-desc {
-        font-size: 14px;
+        font-size: 15px;
         color: #555;
+    }
+    .logout-btn {
+        display: block;
+        margin: 50px auto;
+        background: #e74c3c;
+        color: white !important;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 12px 30px;
+        border-radius: 12px;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -71,71 +92,40 @@ def login_page():
         if user:
             st.session_state.logged_in = True
             st.session_state.user = user
-            st.session_state.page = "welcome"
+            st.session_state.page = "main"
             st.rerun()
         else:
             st.error("❌ Username หรือ Password ไม่ถูกต้อง")
-
-# ========== WELCOME ==========
-def welcome_page():
-    user = st.session_state.user
-    st.markdown(
-        f"""
-        <div style="text-align:center; padding:40px;
-            background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius:20px; color:white; margin:30px auto; max-width:750px;">
-            <h1>👋 สวัสดีคุณ {user['Username']}</h1>
-            <p style="font-size:18px;">Role: <b>{user['Role']}</b></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns([1,1])
-    with col1:
-        if st.button("➡️ เข้าสู่เมนูหลัก"):
-            st.session_state.page = "main"
-            st.rerun()
-    with col2:
-        if st.button("🚪 Logout", key="logout1"):
-            st.session_state.logged_in = False
-            st.session_state.user = None
-            st.session_state.page = "login"
-            st.rerun()
 
 # ========== MAIN MENU ==========
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-    with col1:
-        if st.button("🏖 ลางาน", use_container_width=True):
-            st.session_state.page = "leave_form"
-            st.rerun()
-        st.caption("ยื่นคำขอลา ตรวจสอบวันลา")
+    if st.button("🏖 ลางาน", use_container_width=True):
+        st.session_state.page = "leave_form"
+        st.rerun()
+    st.caption("ยื่นคำขอลา ตรวจสอบวันลา")
 
-    with col2:
-        if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
-            st.info("⏳ ฟีเจอร์กำลังพัฒนา...")
-        st.caption("จองแมสเพื่อส่งเอกสารและพัสดุ")
+    if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
+        st.info("⏳ ฟีเจอร์กำลังพัฒนา...")
 
     if st.session_state.user["Role"].lower() == "admin":
-        with col3:
-            if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
-                st.session_state.page = "user_mgmt"
-                st.rerun()
-            st.caption("เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ")
+        if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
+            st.session_state.page = "user_mgmt"
+            st.rerun()
 
-    st.divider()
-    if st.button("⬅️ กลับ Welcome"):
-        st.session_state.page = "welcome"
-        st.rerun()
-    if st.button("🚪 Logout", key="logout2"):
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Logout ปุ่มตรงกลาง
+    st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
+    if st.button("🚪 Logout", key="logout_center"):
         st.session_state.logged_in = False
         st.session_state.user = None
         st.session_state.page = "login"
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ========== LEAVE FORM ==========
 def leave_form():
@@ -194,9 +184,7 @@ def user_management():
 if not st.session_state.logged_in:
     login_page()
 else:
-    if st.session_state.page == "welcome":
-        welcome_page()
-    elif st.session_state.page == "main":
+    if st.session_state.page == "main":
         main_menu()
     elif st.session_state.page == "leave_form":
         leave_form()
