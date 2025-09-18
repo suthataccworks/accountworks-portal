@@ -98,79 +98,59 @@ def user_management():
 
 # ----------- LEAVE FORM -----------
 def leave_form():
-    st.subheader("🏖 แบบฟอร์มการลา")
+    st.subheader("📄 รายการคำขอลา")
 
-    leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
-    start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
-    end_date = st.date_input("วันที่สิ้นสุด")
-    reason = st.text_area("เหตุผลการลา")
+    user = st.session_state.user
+    leaves = leave_gsheet.get_user_leaves(user["Username"], user["Role"])
 
-    if st.button("✅ ส่งคำขอลา"):
-        ok, msg = leave_gsheet.submit_leave(
-            st.session_state.user["Username"],
-            leave_type,
-            start_date,
-            end_date,
-            reason,
-        )
-        st.success(msg) if ok else st.error(msg)
+    # ✅ แสดงเฉพาะที่ยังไม่ Approved
+    leaves = [l for l in leaves if l["Status"] != "Approved"]
 
-    st.divider()
-    st.markdown("### 📋 รายการคำขอลา")
+    if not leaves:
+        st.info("✅ ไม่มีคำขอที่รอการดำเนินการ")
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
+        return
 
-    # User เห็นเฉพาะตัวเอง, Admin เห็นทั้งหมด
-    leaves = leave_gsheet.get_user_leaves(
-        st.session_state.user["Username"],
-        st.session_state.user["Role"],
-    )
+    for leave in leaves:
+        with st.expander(f"{leave['Username']} | {leave['LeaveType']} | {leave['StartDate']} → {leave['EndDate']} [{leave['Status']}]"):
+            st.json(leave)
 
-    for i, row in enumerate(leaves, start=1):
-        with st.expander(
-            f"{row['Username']} | {row['LeaveType']} | {row['StartDate']} → {row['EndDate']} | {row['Status']}"
-        ):
-            st.write(f"📝 เหตุผล: {row['Reason']}")
+            # ถ้า User = เจ้าของคำขอ และยัง Pending → แก้ไขได้
+            if user["Role"].lower() != "admin" and leave["Username"] == user["Username"] and leave["Status"] == "Pending":
+                new_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"], index=["ลากิจ","ลาป่วย","ลาพักร้อน"].index(leave["LeaveType"]))
+                new_start = st.date_input("วันที่เริ่มลา", datetime.datetime.strptime(leave["StartDate"], "%Y-%m-%d").date())
+                new_end = st.date_input("วันที่สิ้นสุด", datetime.datetime.strptime(leave["EndDate"], "%Y-%m-%d").date())
+                new_reason = st.text_area("เหตุผลการลา", leave["Reason"])
 
-            # User: ยกเลิกหรือแก้ไขได้ ถ้ายัง Pending และเป็นของตัวเอง
-            if (
-                st.session_state.user["Role"].lower() == "user"
-                and row["Username"] == st.session_state.user["Username"]
-                and row["Status"] == "Pending"
-            ):
-                if st.button(f"✏️ แก้ไขคำขอ #{i}"):
-                    new_leave_type = st.selectbox(
-                        "ประเภทการลาใหม่", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"], key=f"edit_type_{i}"
+                if st.button("💾 บันทึกการแก้ไข", key=f"edit_{leave['StartDate']}"):
+                    ok, msg = leave_gsheet.update_leave_request(
+                        leave["Username"], leave["StartDate"], new_type, new_start, new_end, new_reason
                     )
-                    new_start = st.date_input("เริ่มลาใหม่", datetime.date.today(), key=f"edit_start_{i}")
-                    new_end = st.date_input("สิ้นสุดใหม่", datetime.date.today(), key=f"edit_end_{i}")
-                    new_reason = st.text_area("เหตุผลใหม่", key=f"edit_reason_{i}")
-                    if st.button("💾 บันทึก", key=f"save_edit_{i}"):
-                        ok, msg = leave_gsheet.update_leave_request(
-                            row["Username"],
-                            row["StartDate"],
-                            new_leave_type,
-                            new_start,
-                            new_end,
-                            new_reason,
-                        )
-                        st.success(msg) if ok else st.error(msg)
-                        st.rerun()
-
-                if st.button(f"🗑 ยกเลิกคำขอ #{i}"):
-                    ok, msg = leave_gsheet.delete_leave_request(row["Username"], row["StartDate"])
                     st.success(msg) if ok else st.error(msg)
                     st.rerun()
 
-            # Admin: อนุมัติหรือปฏิเสธได้
-            if st.session_state.user["Role"].lower() == "admin" and row["Status"] == "Pending":
-                col1, col2 = st.columns(2)
-                if col1.button(f"✅ อนุมัติ #{i}"):
-                    ok, msg = leave_gsheet.update_leave_status(row["Username"], row["StartDate"], "Approved")
+                if st.button("🗑 ยกเลิกการลา", key=f"cancel_{leave['StartDate']}"):
+                    ok, msg = leave_gsheet.delete_leave_request(leave["Username"], leave["StartDate"])
                     st.success(msg) if ok else st.error(msg)
                     st.rerun()
-                if col2.button(f"❌ ปฏิเสธ #{i}"):
-                    ok, msg = leave_gsheet.update_leave_status(row["Username"], row["StartDate"], "Rejected")
-                    st.warning(msg) if ok else st.error(msg)
+
+            # ถ้า Admin → อนุมัติ/ปฏิเสธได้
+            if user["Role"].lower() == "admin" and leave["Status"] == "Pending":
+                if st.button("✅ อนุมัติ", key=f"approve_{leave['StartDate']}"):
+                    ok, msg = leave_gsheet.update_leave_status(leave["Username"], leave["StartDate"], "Approved")
+                    st.success(msg) if ok else st.error(msg)
                     st.rerun()
+                if st.button("❌ ปฏิเสธ", key=f"reject_{leave['StartDate']}"):
+                    ok, msg = leave_gsheet.update_leave_status(leave["Username"], leave["StartDate"], "Rejected")
+                    st.warning(msg)
+                    st.rerun()
+
+    if st.button("⬅️ กลับเมนูหลัก"):
+        st.session_state.page = "main"
+        st.rerun()
+
 
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
@@ -187,3 +167,4 @@ else:
         user_management()
     elif st.session_state.page == "leave_form":
         leave_form()
+
