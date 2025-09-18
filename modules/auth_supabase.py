@@ -6,8 +6,12 @@ import bcrypt
 DB_URL = os.getenv("SUPABASE_DB_URL")
 
 def get_connection():
-    # ✅ บังคับใช้ SSL (supabase ต้องการ)
-    return psycopg2.connect(DB_URL, sslmode="require")
+    # ✅ ตรวจสอบว่ามี sslmode หรือยัง
+    if "?sslmode=require" not in DB_URL:
+        dsn = f"{DB_URL}?sslmode=require"
+    else:
+        dsn = DB_URL
+    return psycopg2.connect(dsn)
 
 def init_db():
     # Supabase เราสร้างตารางแล้ว เลยไม่ต้องทำอะไร
