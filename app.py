@@ -1,17 +1,13 @@
 import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
+import streamlit as st
 
-# ========== CONFIG ==========
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
-# CSS Custom
+# ========== CSS ==========
 st.markdown("""
     <style>
-    body {
-        background: linear-gradient(135deg, #f9f9f9 0%, #e3f2fd 100%);
-        font-family: "Segoe UI", sans-serif;
-    }
     .portal-title {
         text-align:center;
         font-size:38px;
@@ -73,68 +69,57 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ========== SESSION ==========
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.user = None
 if "page" not in st.session_state:
-    st.session_state.page = "login"
-
-# ========== LOGIN ==========
-def login_page():
-    st.markdown("<div class='portal-title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
-    st.subheader("เข้าสู่ระบบ")
-
-    with st.form("login_form", clear_on_submit=True):
-        username = st.text_input("👤 Username")
-        password = st.text_input("🔑 Password", type="password")
-        submitted = st.form_submit_button("Login")
-
-    if submitted:
-        user = auth.check_login(username, password)
-        if user:
-            st.session_state.logged_in = True
-            st.session_state.user = user
-            st.session_state.page = "main"
-            st.rerun()
-        else:
-            st.error("❌ Username หรือ Password ไม่ถูกต้อง")
+    st.session_state.page = "main"
 
 # ========== MAIN MENU ==========
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    # เมนู
     st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-    # ลางาน
-    if st.button("🏖 ลางาน", key="leave_btn"):
-        st.session_state.page = "leave_form"
-        st.rerun()
+    # ใช้ st.markdown + form แทน st.button → ให้คลิกได้ทั้ง card
+    with st.form("leave_form_btn"):
+        if st.form_submit_button(
+            "🏖 ลางาน\nยื่นคำขอลา ตรวจสอบวันลา",
+            use_container_width=True
+        ):
+            st.session_state.page = "leave_form"
+            st.rerun()
 
-    # จองคิวแมส
-    if st.button("📦 จองคิวแมสเซ็นเจอร์", key="msg_btn"):
-        st.info("⏳ ฟีเจอร์กำลังพัฒนา...")
+    with st.form("messenger_btn"):
+        if st.form_submit_button(
+            "📦 จองคิวแมสเซ็นเจอร์\nจองแมสเพื่อส่งเอกสารและพัสดุ",
+            use_container_width=True
+        ):
+            st.session_state.page = "messenger"
+            st.rerun()
 
-    # Admin เท่านั้น
-    if st.session_state.user["Role"].lower() == "admin":
-        if st.button("⚙️ จัดการผู้ใช้", key="admin_btn"):
+    with st.form("user_mgmt_btn"):
+        if st.form_submit_button(
+            "⚙️ จัดการผู้ใช้\nเพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ",
+            use_container_width=True
+        ):
             st.session_state.page = "user_mgmt"
             st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Logout ตรงกลาง
+    # Logout ปุ่มตรงกลาง
     st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
     if st.button("🚪 Logout", key="logout_center"):
-        st.session_state.logged_in = False
-        st.session_state.user = None
         st.session_state.page = "login"
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ========== ROUTER ==========
-if not st.session_state.logged_in:
-    login_page()
-else:
-    if st.session_state.page == "main":
-        main_menu()
+if st.session_state.page == "main":
+    main_menu()
+elif st.session_state.page == "leave_form":
+    st.write("📄 หน้าฟอร์มการลา (ยังไม่ทำ)")
+elif st.session_state.page == "messenger":
+    st.write("📦 หน้าจองคิวแมส (ยังไม่ทำ)")
+elif st.session_state.page == "user_mgmt":
+    st.write("⚙️ หน้าจัดการผู้ใช้ (ยังไม่ทำ)")
+elif st.session_state.page == "login":
+    st.write("🔑 หน้าล็อกอิน (ยังไม่ทำ)")
