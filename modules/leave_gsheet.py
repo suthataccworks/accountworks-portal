@@ -12,33 +12,38 @@ def get_client():
     )
     return gspread.authorize(creds)
 
+# ----------- SHEETS -----------
 def get_leave_sheet():
     client = get_client()
-    return client.open_by_key(LEAVE_FILE_ID).worksheet("LeaveManagement")  # ✅ ใช้แท็บเดียว
+    return client.open_by_key(LEAVE_FILE_ID).worksheet("LeaveRequests")  # ✅ คำขอลา
+
+def get_balance_sheet():
+    client = get_client()
+    return client.open_by_key(LEAVE_FILE_ID).worksheet("balance")  # ✅ วันลาคงเหลือ
 
 # ----------- Submit Leave -----------
 def submit_leave(username, leave_type, start_date, end_date, reason):
     days = (datetime.datetime.fromisoformat(str(end_date)) - datetime.datetime.fromisoformat(str(start_date))).days + 1
 
-    # ตรวจสอบวันลาคงเหลือก่อน
+    # ตรวจสอบวันลาคงเหลือ
     if not check_leave_balance(username, leave_type, days):
         return False, f"❌ วันลาคงเหลือไม่พอ ({leave_type})"
 
-    # เพิ่มคำขอลาใน sheet (เพิ่มต่อท้าย)
-    sheet = get_leave_sheet()
-    sheet.append_row([username, leave_type, str(start_date), str(end_date), reason, "Pending"])
+    # บันทึกคำขอลา
+    leave_sheet = get_leave_sheet()
+    leave_sheet.append_row([username, leave_type, str(start_date), str(end_date), reason, "Pending"])
 
-    # หักวันลาออกจาก Balance
+    # หักวันลา
     deduct_leave_balance(username, leave_type, days)
 
     return True, f"✅ ส่งคำขอลาเรียบร้อย ({days} วัน)"
 
 # ----------- Check Leave Balance -----------
 def check_leave_balance(username, leave_type, days):
-    sheet = get_leave_sheet()
+    sheet = get_balance_sheet()
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
-        if row["Username"] == username:
+        if row["username"] == username:   # ✅ column header ต้องตรง case
             if int(row[leave_type]) >= days:
                 return True
             else:
@@ -47,16 +52,25 @@ def check_leave_balance(username, leave_type, days):
 
 # ----------- Deduct Leave Balance -----------
 def deduct_leave_balance(username, leave_type, days):
-    sheet = get_leave_sheet()
+    sheet = get_balance_sheet()
     records = sheet.get_all_records()
     for i, row in enumerate(records, start=2):
-        if row["Username"] == username:
+        if row["username"] == username:
             new_value = int(row[leave_type]) - days
             col_index = list(row.keys()).index(leave_type) + 1
-            sheet.update_cell(i, col_index, new_value)
+            sheet.update_cell(i, col_index+1, new_value)  # +1 เพราะ index เริ่มจาก 0
             break
 
 # ----------- Get All Leaves -----------
 def get_all_leaves():
     sheet = get_leave_sheet()
-    return sheet.get_all_records()   # ✅ คืนค่าข้อมูลทั้งหมดในแท็บ
+    return sheet.get_all_records()
+
+# ----------- Update Leave Status -----------
+def update_leave_status(username, status):
+    sheet = get_leave_sheet()
+    records = sheet.get_all_records()
+    for i, row in enumerate(records, start=2):
+        if row["Username"] == username and row["Status"] == "Pending":
+            sheet.update_cell(i, 6, status)  # col6 = Status
+            break
