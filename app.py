@@ -28,10 +28,12 @@ if not st.session_state.logged_in:
         else:
             st.error("❌ Invalid username or password")
 
-# ================== Welcome Page ==================
+# ================== After Login ==================
 else:
     user = st.session_state.user
+    role = user["Role"].lower()
 
+    # Welcome Banner (ใช้ทุก role)
     st.markdown(
         f"""
         <div style="
@@ -52,6 +54,45 @@ else:
 
     st.divider()
 
+    # ================== Role-based Dashboard ==================
+    if role == "admin":
+        st.subheader("👩‍💻 Admin Dashboard")
+        st.info("คุณสามารถจัดการผู้ใช้ได้ที่นี่")
+
+        # Add user
+        st.markdown("### ➕ Add New User")
+        new_user = st.text_input("New Username")
+        new_pass = st.text_input("New Password")
+        new_role = st.selectbox("Role", ["Admin", "User", "Staff"])
+
+        if st.button("Add User"):
+            if new_user and new_pass:
+                auth.add_user(new_user, new_pass, new_role)
+                st.success(f"✅ Added {new_user}")
+                st.rerun()
+            else:
+                st.warning("⚠️ Please fill username and password")
+
+        # Delete user
+        st.markdown("### 🗑 Delete User")
+        del_user = st.text_input("Delete Username")
+        if st.button("Delete User"):
+            if auth.delete_user(del_user):
+                st.success(f"🗑 Deleted {del_user}")
+                st.rerun()
+            else:
+                st.warning("⚠️ User not found")
+
+    elif role == "staff":
+        st.subheader("👷 Staff Dashboard")
+        st.info("หน้านี้สำหรับพนักงานทั่วไป เช่น ดูสิทธิ์การลา เช็ควันลา ฯลฯ")
+
+    elif role == "user":
+        st.subheader("🙋 User Dashboard")
+        st.info("หน้านี้สำหรับผู้ใช้งานทั่วไป เช่น ดูข้อมูลส่วนตัว")
+
+    # ================== Logout ==================
+    st.divider()
     if st.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
