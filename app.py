@@ -86,6 +86,31 @@ def user_management():
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
+# ----------- LEAVE FORM -----------
+def leave_form():
+    st.subheader("🏖 แบบฟอร์มการลา")
+
+    leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
+    start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
+    end_date = st.date_input("วันที่สิ้นสุด")
+    reason = st.text_area("เหตุผลการลา")
+
+    if st.button("✅ ส่งคำขอลา"):
+        ok, msg = leave_gsheet.submit_leave(
+            st.session_state.user["Username"],
+            leave_type,
+            start_date,
+            end_date,
+            reason
+        )
+        if ok:
+            st.success(msg)
+        else:
+            st.error(msg)
+
+    if st.button("⬅️ กลับเมนูหลัก"):
+        st.session_state.page = "main"
+        st.rerun()
 
 # ----------- ROUTER -----------
 if not st.session_state.logged_in:
@@ -95,3 +120,4 @@ else:
         main_menu()
     elif st.session_state.page == "user_mgmt":
         user_management()
+
