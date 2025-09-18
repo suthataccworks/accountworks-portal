@@ -1,5 +1,6 @@
 import streamlit as st
 from modules import auth_gsheet as auth
+from modules import leave_gsheet
 
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
@@ -118,36 +119,53 @@ else:
 
     # ----------- Main Menu -----------
     elif st.session_state.page == "main":
-        st.subheader("📌 Main Menu")
+    st.subheader("📌 Main Menu")
 
-        col1, col2 = st.columns([1,1])  # แบ่งเป็น 2 คอลัมน์
+    col1, col2 = st.columns([1,1])
 
-        with col1:
-            st.markdown(
-                """
-                <div class="menu-card">
-                    <div class="menu-icon">🏖</div>
-                    <div class="menu-title">ลางาน</div>
-                    <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลาคงเหลือ</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    with col1:
+        if st.button("🏖 ลางาน"):
+            st.session_state.page = "leave_form"
+            st.rerun()
 
-        with col2:
-            st.markdown(
-                """
-                <div class="menu-card">
-                    <div class="menu-icon">📦</div>
-                    <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
-                    <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    with col2:
+        if st.button("📦 จองคิวแมสเซ็นเจอร์"):
+            st.info("⏳ กำลังพัฒนา...")
 
-        st.divider()
-        colA, colB = st.columns([1,1])
+    st.divider()
+    colA, colB = st.columns([1,1])
+    with colA:
+        if st.button("⬅️ กลับไปหน้า Welcome"):
+            st.session_state.page = "welcome"
+            st.rerun()
+    with colB:
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            st.session_state.page = "welcome"
+            st.rerun()
+
+# ----------- Leave Form -----------
+elif st.session_state.page == "leave_form":
+    st.subheader("🏖 แบบฟอร์มการลา")
+
+    leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
+    start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
+    end_date = st.date_input("วันที่สิ้นสุด")
+    reason = st.text_area("เหตุผลการลา")
+
+    if st.button("✅ ส่งคำขอลา"):
+        leave_gsheet.submit_leave(
+            st.session_state.user["Username"],
+            leave_type, start_date, end_date, reason
+        )
+        st.success("📌 ส่งคำขอลาเรียบร้อยแล้ว (รอหัวหน้าอนุมัติ)")
+        st.session_state.page = "main"
+        st.rerun()
+
+    if st.button("⬅️ กลับเมนูหลัก"):
+        st.session_state.page = "main"
+        st.rerun()
         with colA:
             if st.button("⬅️ กลับไปหน้า Welcome"):
                 st.session_state.page = "welcome"
@@ -158,3 +176,4 @@ else:
                 st.session_state.user = None
                 st.session_state.page = "welcome"
                 st.rerun()
+
