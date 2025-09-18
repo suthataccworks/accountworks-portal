@@ -1,6 +1,6 @@
 import gspread
 import streamlit as st
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 def get_sheet():
     """
@@ -8,11 +8,11 @@ def get_sheet():
     ต้องมี header แถวแรก = Username | Password | Role
     """
     scope = [
-        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        st.secrets["gcp_service_account"], scope
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scope
     )
     client = gspread.authorize(creds)
     sheet = client.open("UserManagement").worksheet("users")  # 👈 Tab ต้องชื่อ users
