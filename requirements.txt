@@ -16,5 +16,8 @@ oauth2client
 streamlit
 gspread
 google-auth
-
-
+streamlit
+gspread
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
