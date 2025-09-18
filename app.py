@@ -2,7 +2,6 @@ import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
 
-# ================= CONFIG =================
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
 # ================= CSS =================
@@ -19,36 +18,36 @@ st.markdown("""
         color:#2c3e50;
         margin: 20px 0 40px 0;
     }
-    .menu-container {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 30px;
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 25px;
+        max-width: 1000px;
+        margin: auto;
     }
     .menu-card {
-        width: 280px;
-        height: 200px;
         background: white;
-        border-radius: 18px;
-        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+        border-radius: 20px;
+        padding: 40px 20px;
         text-align: center;
-        padding: 30px 20px;
+        box-shadow: 0 8px 18px rgba(0,0,0,0.1);
         transition: all 0.3s ease;
+        cursor: pointer;
     }
     .menu-card:hover {
         transform: translateY(-8px);
-        box-shadow: 0 15px 25px rgba(0,0,0,0.15);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
         background: #f0f8ff;
     }
     .menu-icon {
-        font-size: 50px;
+        font-size: 55px;
         margin-bottom: 15px;
     }
     .menu-title {
         font-size: 22px;
         font-weight: bold;
         color: #2c3e50;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
     .menu-desc {
         font-size: 15px;
@@ -56,7 +55,7 @@ st.markdown("""
     }
     .logout-btn {
         display: block;
-        margin: 60px auto 0 auto;
+        margin: 50px auto 0 auto;
         background: #e74c3c;
         color: white !important;
         font-size: 18px;
@@ -106,29 +105,25 @@ def main_menu():
     user = st.session_state.user
     role = user["Role"].lower()
 
-    st.markdown('<div class="menu-container">', unsafe_allow_html=True)
+    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    # เมนูการ์ด
+    if st.button("🏖 ลางาน\n\nยื่นคำขอลา ตรวจสอบวันลา", key="leave", use_container_width=True):
+        st.session_state.page = "leave"
+        st.rerun()
 
-    with col1:
-        if st.button("🏖 ลางาน", use_container_width=True):
-            st.session_state.page = "leave"
+    if st.button("📦 จองคิวแมสเซ็นเจอร์\n\nจองแมสเพื่อส่งเอกสารและพัสดุ", key="messenger", use_container_width=True):
+        st.session_state.page = "messenger"
+        st.rerun()
+
+    if role == "admin":
+        if st.button("⚙️ จัดการผู้ใช้\n\nเพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ", key="user_mgmt", use_container_width=True):
+            st.session_state.page = "user_mgmt"
             st.rerun()
-
-    with col2:
-        if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
-            st.session_state.page = "messenger"
-            st.rerun()
-
-    with col3:
-        if role == "admin":
-            if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
-                st.session_state.page = "user_mgmt"
-                st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ปุ่ม Logout ตรงกลาง
+    # ปุ่ม Logout
     st.write("")
     st.write("")
     if st.button("🚪 Logout", key="logout", use_container_width=False):
