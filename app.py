@@ -1,7 +1,7 @@
 import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
-from modules import leave_gsheet   # ✅ ต้องเพิ่มบรรทัดนี้
+from modules import leave_gsheet
 
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
@@ -36,7 +36,7 @@ def main_menu():
 
     cols = st.columns(3)
     if cols[0].button("🏖 ลางาน", use_container_width=True):
-        st.session_state.page = "leave_form"   # ✅ ไปหน้า leave_form
+        st.session_state.page = "leave_form"
         st.rerun()
     if cols[1].button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
         st.info("⏳ กำลังพัฒนา...")
@@ -110,6 +110,15 @@ def leave_form():
         else:
             st.error(msg)
 
+    st.markdown("---")
+    st.subheader("📋 รายการคำขอลาทั้งหมด")
+    leaves = leave_gsheet.get_all_leaves()
+    if leaves:
+        st.table(leaves)
+    else:
+        st.info("ยังไม่มีคำขอลา")
+
+    st.markdown("---")
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
@@ -122,5 +131,5 @@ else:
         main_menu()
     elif st.session_state.page == "user_mgmt":
         user_management()
-    elif st.session_state.page == "leave_form":   # ✅ เพิ่ม routing สำหรับ leave_form
+    elif st.session_state.page == "leave_form":
         leave_form()
