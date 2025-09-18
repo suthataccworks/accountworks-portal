@@ -23,7 +23,8 @@ st.markdown("""
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 30px;
-        margin-top: 40px;
+        margin: 40px auto;
+        max-width: 1000px;
     }
     .menu-card {
         background: white;
@@ -41,6 +42,7 @@ st.markdown("""
     .menu-card:hover {
         transform: translateY(-8px);
         box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        background: #f0f8ff;
     }
     .menu-icon {
         font-size: 60px;
@@ -101,24 +103,27 @@ def login_page():
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
+    # เมนู
     st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
 
-    if st.button("🏖 ลางาน", use_container_width=True):
+    # ลางาน
+    if st.button("🏖 ลางาน", key="leave_btn"):
         st.session_state.page = "leave_form"
         st.rerun()
-    st.caption("ยื่นคำขอลา ตรวจสอบวันลา")
 
-    if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
+    # จองคิวแมส
+    if st.button("📦 จองคิวแมสเซ็นเจอร์", key="msg_btn"):
         st.info("⏳ ฟีเจอร์กำลังพัฒนา...")
 
+    # Admin เท่านั้น
     if st.session_state.user["Role"].lower() == "admin":
-        if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
+        if st.button("⚙️ จัดการผู้ใช้", key="admin_btn"):
             st.session_state.page = "user_mgmt"
             st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Logout ปุ่มตรงกลาง
+    # Logout ตรงกลาง
     st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
     if st.button("🚪 Logout", key="logout_center"):
         st.session_state.logged_in = False
@@ -127,66 +132,9 @@ def main_menu():
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ========== LEAVE FORM ==========
-def leave_form():
-    st.subheader("🏖 แบบฟอร์มการลา")
-    leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
-    start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
-    end_date = st.date_input("วันที่สิ้นสุด")
-    reason = st.text_area("เหตุผลการลา")
-
-    if st.button("✅ ส่งคำขอลา"):
-        st.success("📌 ส่งคำขอลาเรียบร้อยแล้ว (รอหัวหน้าอนุมัติ)")
-        st.session_state.page = "main"
-        st.rerun()
-
-    if st.button("⬅️ กลับเมนูหลัก"):
-        st.session_state.page = "main"
-        st.rerun()
-
-# ========== USER MANAGEMENT ==========
-def user_management():
-    st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
-
-    users = auth.get_all_users()
-    st.table(users)
-
-    st.markdown("### ➕ เพิ่มผู้ใช้ใหม่")
-    new_user = st.text_input("Username (ใหม่)")
-    new_pass = st.text_input("Password (ใหม่)", type="password")
-    new_role = st.selectbox("Role", ["Admin", "User", "Staff"])
-    if st.button("✅ เพิ่มผู้ใช้"):
-        auth.add_user(new_user, new_pass, new_role)
-        st.success("เพิ่มผู้ใช้เรียบร้อยแล้ว ✅")
-        st.rerun()
-
-    st.markdown("### 📝 อัปเดตผู้ใช้")
-    target_user = st.text_input("เลือก Username ที่ต้องการแก้ไข")
-    upd_pass = st.text_input("รหัสผ่านใหม่", type="password")
-    upd_role = st.selectbox("Role ใหม่", ["Admin", "User", "Staff"], key="upd_role")
-    if st.button("💾 บันทึกการแก้ไข"):
-        auth.update_user(target_user, upd_pass, upd_role)
-        st.success("อัปเดตผู้ใช้เรียบร้อย ✅")
-        st.rerun()
-
-    st.markdown("### ❌ ลบผู้ใช้")
-    del_user = st.text_input("Username ที่ต้องการลบ")
-    if st.button("🗑 ลบผู้ใช้"):
-        auth.delete_user(del_user)
-        st.warning(f"ลบผู้ใช้ {del_user} เรียบร้อยแล้ว")
-        st.rerun()
-
-    if st.button("⬅️ กลับเมนูหลัก"):
-        st.session_state.page = "main"
-        st.rerun()
-
 # ========== ROUTER ==========
 if not st.session_state.logged_in:
     login_page()
 else:
     if st.session_state.page == "main":
         main_menu()
-    elif st.session_state.page == "leave_form":
-        leave_form()
-    elif st.session_state.page == "user_mgmt":
-        user_management()
