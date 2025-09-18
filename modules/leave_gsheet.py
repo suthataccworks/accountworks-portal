@@ -4,7 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import datetime
 
 # Spreadsheet ID ของ LeaveManagement
-LEAVE_FILE_ID = "ใส่ SpreadsheetID ของคุณตรงนี้"
+LEAVE_FILE_ID = "1P1dt1syrcOEW_AyM3-i-fCMzUeMtCMUxLUdOUfK5LaQ"
 
 def get_client():
     scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
