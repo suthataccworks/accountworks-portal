@@ -10,3 +10,7 @@ bcrypt==4.0.1
 plotly
 psycopg2-binary
 supabase
+streamlit
+gspread
+oauth2client
+
