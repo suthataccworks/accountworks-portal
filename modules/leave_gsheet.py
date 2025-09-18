@@ -4,7 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
 
 # ใช้ค่า ID จาก secrets
-LEAVE_FILE_ID = st.secrets.get("leave_file_id", "").strip()
+LEAVE_FILE_ID = st.secrets.get("1P1dt1syrcOEW_AyM3-i-fCMzUeMtCMUxLUdOUfK5LaQ", "").strip()
 
 def _require_file_id():
     if not LEAVE_FILE_ID:
