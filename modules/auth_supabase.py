@@ -3,8 +3,8 @@ import os
 import bcrypt
 
 # ดึงค่าจาก Streamlit Secrets
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("https://uvrraxjfwmhxqjhklpdu.supabase.co")
+SUPABASE_KEY = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2cnJ4YWpmd21ocXhqaGtscGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxNTk0NjgsImV4cCI6MjA3MzczNTQ2OH0.ZT8xi4UFB2hFpnwy9HO7E4g3sbVCMqs7bwPWGpbpetM")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
