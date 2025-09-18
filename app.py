@@ -89,7 +89,9 @@ def user_management():
         st.rerun()
 
 # ----------- LEAVE FORM -----------
+# ----------- LEAVE FORM -----------
 def leave_form():
+    user = st.session_state.user
     st.subheader("🏖 แบบฟอร์มการลา")
 
     leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
@@ -99,11 +101,7 @@ def leave_form():
 
     if st.button("✅ ส่งคำขอลา"):
         ok, msg = leave_gsheet.submit_leave(
-            st.session_state.user["Username"],
-            leave_type,
-            start_date,
-            end_date,
-            reason
+            user["Username"], leave_type, start_date, end_date, reason
         )
         if ok:
             st.success(msg)
@@ -111,17 +109,49 @@ def leave_form():
             st.error(msg)
 
     st.markdown("---")
-    st.subheader("📋 รายการคำขอลาทั้งหมด")
+    st.subheader("📋 รายการคำขอลา")
+
+    # ดึงข้อมูลทั้งหมด
     leaves = leave_gsheet.get_all_leaves()
-    if leaves:
-        st.table(leaves)
-    else:
+
+    if not leaves:
         st.info("ยังไม่มีคำขอลา")
+    else:
+        if user["Role"].lower() == "admin":
+            st.write("🔑 คุณคือ **Admin** เห็นคำขอของทุกคน")
+            for i, row in enumerate(leaves, start=2):
+                with st.expander(f"{row['Username']} - {row['LeaveType']} ({row['Status']})"):
+                    st.write(row)
+                    col1, col2 = st.columns(2)
+                    if col1.button("✅ อนุมัติ", key=f"approve_{i}"):
+                        leave_gsheet.update_leave_status(row["Username"], "Approved")
+                        st.success(f"✅ อนุมัติ {row['Username']} เรียบร้อย")
+                        st.rerun()
+                    if col2.button("❌ ยกเลิก", key=f"cancel_{i}"):
+                        leave_gsheet.update_leave_status(row["Username"], "Cancelled")
+                        st.warning(f"❌ ยกเลิกคำขอของ {row['Username']} แล้ว")
+                        st.rerun()
+
+        else:
+            my_leaves = [r for r in leaves if r["Username"] == user["Username"]]
+            if not my_leaves:
+                st.info("คุณยังไม่มีคำขอลา")
+            else:
+                for i, row in enumerate(my_leaves, start=2):
+                    with st.expander(f"{row['LeaveType']} {row['StartDate']} → {row['EndDate']} [{row['Status']}]"):
+                        st.write(row)
+                        if row["Status"] == "Pending":
+                            new_reason = st.text_area("แก้ไขเหตุผล", value=row["Reason"], key=f"reason_{i}")
+                            if st.button("💾 บันทึกการแก้ไข", key=f"update_{i}"):
+                                leave_gsheet.update_leave_reason(user["Username"], row["StartDate"], new_reason)
+                                st.success("อัปเดตเหตุผลเรียบร้อย ✅")
+                                st.rerun()
 
     st.markdown("---")
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
+
 
 # ----------- ROUTER -----------
 if not st.session_state.logged_in:
@@ -133,3 +163,4 @@ else:
         user_management()
     elif st.session_state.page == "leave_form":
         leave_form()
+
