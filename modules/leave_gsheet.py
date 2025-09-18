@@ -1,214 +1,180 @@
-# -*- coding: utf-8 -*-
-"""
-leave_store.py  (แทนที่ไฟล์เดิมของคุณได้เลย)
-- ใช้ gspread + google.oauth2.service_account
-- สร้าง/เปิดชีต LeaveRequests อัตโนมัติ
-- มี helper สำหรับอ่าน/เพิ่ม/แก้ไข/ยกเลิก/อัปเดตสถานะ
-"""
+# modules/leave_gsheet.py
+import os, datetime as dt
+from typing import Tuple, List, Dict, Any
 
-from __future__ import annotations
-import datetime as dt
-from typing import Any, Dict, List, Tuple
+try:
+    import streamlit as st
+except Exception:
+    class _Dummy:
+        secrets = {}
+        def warning(self, *a, **k): pass
+    st = _Dummy()  # type: ignore
 
-import gspread
-import streamlit as st
-from gspread.exceptions import WorksheetNotFound, SpreadsheetNotFound
-from google.oauth2.service_account import Credentials
+DATA_DIR = "./_local_data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# =========================
-# CONFIG
-# =========================
+SPREADSHEET_KEY = st.secrets.get("SPREADSHEET_KEY")
+LEAVE_SHEET_NAME = st.secrets.get("LEAVE_REQUESTS_SHEET_NAME", "LeaveRequests")
 
-SHEET_NAME = "LeaveRequests"
-HEADERS = ["Username", "LeaveType", "StartDate", "EndDate", "Reason", "Status"]  # A..F
-# Scopes: อ่าน/เขียนชีต + อ่านไฟล์ไดรฟ์ (เปิดด้วย ID)
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.readonly",
-]
-
-LEAVE_FILE_ID = (st.secrets.get("leave_file_id") or "").strip()
-
-
-# =========================
-# INTERNAL HELPERS
-# =========================
-
-def _require_file_id() -> None:
-    if not LEAVE_FILE_ID:
-        raise ValueError("ไม่พบค่า leave_file_id ใน st.secrets — โปรดตั้งค่า leave_file_id ให้ถูกต้อง")
-
-
-def _normalize_sa_info(sa_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """ทำให้ private_key ถูกฟอร์แมตเสมอ (รองรับกรณี secrets วางเป็น \\n)"""
-    sa = dict(sa_dict or {})
-    key = str(sa.get("private_key", "") or "")
-    if not key:
-        raise RuntimeError("Service Account private_key is empty. ตรวจสอบ st.secrets['gcp_service_account'].private_key")
-
-    # แปลง "\\n" ให้เป็น newline จริง
-    if "\\n" in key:
-        key = key.replace("\\n", "\n")
-    key = key.strip()
-
-    if not (key.startswith("-----BEGIN PRIVATE KEY-----") and key.endswith("-----END PRIVATE KEY-----")):
-        raise RuntimeError("private_key format ดูไม่ถูกต้อง: ควรเป็นก้อน PKCS8 ครบหัว/ท้าย และใช้ \\n แทนขึ้นบรรทัด")
-
-    sa["private_key"] = key
-    return sa
-
-
-def _gs_client() -> gspread.Client:
-    sa_info = _normalize_sa_info(st.secrets.get("gcp_service_account", {}))
-    creds = Credentials.from_service_account_info(sa_info, scopes=SCOPES)
-    return gspread.authorize(creds)
-
-
-def _open_spreadsheet() -> gspread.Spreadsheet:
-    _require_file_id()
-    client = _gs_client()
+def _get_gspread_client():
     try:
-        return client.open_by_key(LEAVE_FILE_ID)
-    except SpreadsheetNotFound:
-        raise SpreadsheetNotFound(
-            "ไม่พบสเปรดชีตจาก leave_file_id หรือ Service Account ไม่มีสิทธิ์เข้าถึง "
-            "(แชร์ไฟล์ให้ client_email ของ Service Account อย่างน้อย Viewer/Editor)"
-        )
-
-
-def _ensure_worksheet(sh: gspread.Spreadsheet) -> gspread.Worksheet:
-    """เปิดชีตชื่อ SHEET_NAME ถ้าไม่มีให้สร้าง + ใส่หัวตาราง A1:F1"""
-    try:
-        ws = sh.worksheet(SHEET_NAME)
-    except WorksheetNotFound:
-        ws = sh.add_worksheet(title=SHEET_NAME, rows=1000, cols=len(HEADERS))
-        ws.update(f"A1:{chr(ord('A') + len(HEADERS) - 1)}1", [HEADERS])
-    return ws
-
-
-def _to_str_date(x: Any) -> str:
-    """รับ date/datetime/string -> คืน string YYYY-MM-DD"""
-    if isinstance(x, (dt.date, dt.datetime)):
-        return x.date().isoformat() if isinstance(x, dt.datetime) else x.isoformat()
-    return str(x or "")
-
-
-def _days_inclusive(start: Any, end: Any) -> int | None:
-    """คำนวณจำนวนวันแบบคร่าว ๆ (รวมต้น-ท้าย) ถ้าเป็นสตริง/แปลงไม่ได้ ให้คืน None"""
-    def _coerce(d):
-        if isinstance(d, dt.datetime):
-            return d.date()
-        if isinstance(d, dt.date):
-            return d
-        if isinstance(d, str):
-            try:
-                return dt.date.fromisoformat(d)
-            except ValueError:
-                return None
+        from google.oauth2.service_account import Credentials
+        import gspread
+        info = st.secrets["gcp_service_account"]
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+        return gspread.authorize(creds)
+    except Exception:
         return None
 
-    s = _coerce(start)
-    e = _coerce(end)
-    if s and e:
-        return (e - s).days + 1
+GS = _get_gspread_client()
+
+def _open_ws():
+    if GS and SPREADSHEET_KEY:
+        sh = GS.open_by_key(SPREADSHEET_KEY)
+        try:
+            return sh.worksheet(LEAVE_SHEET_NAME)
+        except Exception:
+            sh.add_worksheet(title=LEAVE_SHEET_NAME, rows=2000, cols=20)
+            return sh.worksheet(LEAVE_SHEET_NAME)
     return None
 
+def _csv_path() -> str:
+    return os.path.join(DATA_DIR, f"{LEAVE_SHEET_NAME}.csv")
 
-def _clear_cache():
+def _ensure_header(ws):
+    # if empty sheet, create header
+    vals = ws.get_all_values()
+    if not vals:
+        header = ["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"]
+        ws.append_row(header)
+
+def _read_all() -> List[Dict[str, Any]]:
+    import pandas as pd
+    ws = _open_ws()
+    if ws is not None:
+        vals = ws.get_all_values()
+        if not vals:
+            _ensure_header(ws)
+            vals = ws.get_all_values()
+        header, rows = vals[0], vals[1:]
+        data = []
+        for i, r in enumerate(rows, start=2):  # row index in sheet
+            rec = {header[j]: (r[j] if j < len(r) else "") for j in range(len(header))}
+            rec["row_index"] = i
+            data.append(rec)
+        return data
+    # CSV fallback
+    p = _csv_path()
+    if not os.path.exists(p):
+        import pandas as pd
+        df = pd.DataFrame(columns=["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"])
+        df.to_csv(p, index=False, encoding="utf-8-sig")
+    import pandas as pd
+    df = pd.read_csv(p).fillna("")
+    data = df.to_dict(orient="records")
+    # emulate row_index (header is row 1)
+    for i, rec in enumerate(data, start=2):
+        rec["row_index"] = i
+    return data
+
+def _write_all(records: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    import pandas as pd
+    cols = ["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"]
+    df = pd.DataFrame([{k:v for k,v in r.items() if k in cols} for r in records], columns=cols)
+    ws = _open_ws()
+    if ws is not None:
+        try:
+            ws.clear()
+            ws.update([df.columns.tolist()] + df.fillna("").values.tolist())
+            return True, "อัปเดตคำขอลาสำเร็จ"
+        except Exception as e:
+            return False, f"อัปเดตชีตไม่สำเร็จ: {e}"
     try:
-        get_all_leaves.clear()
-    except Exception:
-        pass
+        df.to_csv(_csv_path(), index=False, encoding="utf-8-sig")
+        return True, "อัปเดต CSV สำเร็จ"
+    except Exception as e:
+        return False, f"บันทึก CSV ไม่สำเร็จ: {e}"
 
+# ===== Public APIs used by app.py =====
+def submit_leave(username: str, leave_type: str, start_date: dt.date, end_date: dt.date, reason: str) -> Tuple[bool, str]:
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ws = _open_ws()
+    if ws is not None:
+        _ensure_header(ws)
+        try:
+            ws.append_row([
+                username, leave_type,
+                start_date.isoformat(), end_date.isoformat(),
+                reason, "Pending", now, now
+            ])
+            return True, "ส่งคำขอลาเรียบร้อย"
+        except Exception as e:
+            return False, f"เพิ่มแถวในชีตไม่สำเร็จ: {e}"
+    # CSV fallback
+    recs = _read_all()
+    recs.append({
+        "Username": username, "LeaveType": leave_type,
+        "StartDate": start_date.isoformat(), "EndDate": end_date.isoformat(),
+        "Reason": reason, "Status": "Pending",
+        "CreatedAt": now, "UpdatedAt": now
+    })
+    return _write_all(recs)
 
-# =========================
-# WORKSHEET ACCESSOR
-# =========================
-
-def _get_leave_ws() -> gspread.Worksheet:
-    sh = _open_spreadsheet()
-    return _ensure_worksheet(sh)
-
-
-# =========================
-# PUBLIC API (เรียกใช้จาก app.py)
-# =========================
-
-@st.cache_data(ttl=20)
 def get_all_leaves() -> List[Dict[str, Any]]:
-    """
-    อ่านรายการคำขอลาทั้งหมดเป็น list[dict] + แทรก row_index (แถวจริงในชีต)
-    """
-    ws = _get_leave_ws()
-    # ถ้าไฟล์เพิ่งสร้างใหม่ อาจยังไม่มี header -> บังคับให้มี
-    first_row = ws.row_values(1)
-    if first_row != HEADERS:
-        ws.update(f"A1:{chr(ord('A') + len(HEADERS) - 1)}1", [HEADERS])
+    return _read_all()
 
-    records = ws.get_all_records()  # อ่านทั้งหมด (ยึดบรรทัดแรกเป็น header)
-    for i, row in enumerate(records, start=2):  # header อยู่แถว 1
-        row["row_index"] = i
-        # default ช่องว่างป้องกัน KeyError
-        for h in HEADERS:
-            row.setdefault(h, "")
-    return records
-
-
-def submit_leave(username: str, leave_type: str, start_date: Any, end_date: Any, reason: str) -> Tuple[bool, str]:
-    """
-    เพิ่มคำขอลาใหม่ (เริ่มด้วยสถานะ = Pending)
-    start_date/end_date: date | datetime | "YYYY-MM-DD"
-    """
-    ws = _get_leave_ws()
-    payload = [
-        str(username or ""),
-        str(leave_type or ""),
-        _to_str_date(start_date),
-        _to_str_date(end_date),
-        str(reason or ""),
-        "Pending",
-    ]
-    # ใช้ USER_ENTERED เผื่อมีสูตร/format ในอนาคต
-    ws.append_row(payload, value_input_option="USER_ENTERED")
-    _clear_cache()
-
-    days = _days_inclusive(start_date, end_date)
-    if days is not None:
-        return True, f"✅ ส่งคำขอลาเรียบร้อย ({days} วัน)"
-    return True, "✅ ส่งคำขอลาเรียบร้อย"
-
-
-def update_leave_request(row_index: int, new_type: str, new_start: Any, new_end: Any, new_reason: str) -> Tuple[bool, str]:
-    """
-    ผู้ใช้แก้ไขคำขอลา (อัปเดตคอลัมน์ B..E แบบ batch เพื่อลด API calls)
-    """
-    ws = _get_leave_ws()
-    values = [[
-        str(new_type or ""),
-        _to_str_date(new_start),
-        _to_str_date(new_end),
-        str(new_reason or "")
-    ]]
-    ws.update(f"B{row_index}:E{row_index}", values, value_input_option="USER_ENTERED")
-    _clear_cache()
-    return True, "💾 อัปเดตคำขอลาเรียบร้อย"
-
+def update_leave_request(row_index: int, leave_type: str, start_date: dt.date, end_date: dt.date, reason: str) -> Tuple[bool, str]:
+    ws = _open_ws()
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if ws is not None:
+        try:
+            # col mapping based on header
+            header = ws.row_values(1)
+            col_map = {name:i+1 for i,name in enumerate(header)}
+            ws.update_cell(row_index, col_map["LeaveType"], leave_type)
+            ws.update_cell(row_index, col_map["StartDate"], start_date.isoformat())
+            ws.update_cell(row_index, col_map["EndDate"], end_date.isoformat())
+            ws.update_cell(row_index, col_map["Reason"], reason)
+            ws.update_cell(row_index, col_map["UpdatedAt"], now)
+            return True, "อัปเดตคำขอเรียบร้อย"
+        except Exception as e:
+            return False, f"อัปเดตชีตไม่สำเร็จ: {e}"
+    # CSV fallback
+    recs = _read_all()
+    for r in recs:
+        if int(r.get("row_index", -1)) == int(row_index):
+            r["LeaveType"] = leave_type
+            r["StartDate"] = start_date.isoformat()
+            r["EndDate"] = end_date.isoformat()
+            r["Reason"] = reason
+            r["UpdatedAt"] = now
+            break
+    return _write_all(recs)
 
 def cancel_leave_request(row_index: int) -> Tuple[bool, str]:
-    """
-    ผู้ใช้ยกเลิกคำขอ: ลบทั้งแถว (ถ้าจะเก็บประวัติ ให้ใช้ update_leave_status(row_index, 'Cancelled') แทน)
-    """
-    ws = _get_leave_ws()
-    ws.delete_rows(row_index)
-    _clear_cache()
-    return True, "🗑 ยกเลิกคำขอลาเรียบร้อยแล้ว"
-
+    return update_leave_status(row_index, "Cancelled")
 
 def update_leave_status(row_index: int, status: str) -> Tuple[bool, str]:
-    """
-    Admin/หัวหน้า อัปเดตสถานะ (Approved/Rejected/Cancelled)
-    """
-    ws = _get_leave_ws()
-    ws.update_cell(row_index, 6, str(status or ""))  # F: Status
-    _clear_cache()
-    return True, f"📌 อัปเดตสถานะเป็น {status}"
+    ws = _open_ws()
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if ws is not None:
+        try:
+            header = ws.row_values(1)
+            col_map = {name:i+1 for i,name in enumerate(header)}
+            ws.update_cell(row_index, col_map["Status"], status)
+            ws.update_cell(row_index, col_map["UpdatedAt"], now)
+            return True, "อัปเดตสถานะเรียบร้อย"
+        except Exception as e:
+            return False, f"อัปเดตสถานะไม่สำเร็จ: {e}"
+    # CSV fallback
+    recs = _read_all()
+    for r in recs:
+        if int(r.get("row_index", -1)) == int(row_index):
+            r["Status"] = status
+            r["UpdatedAt"] = now
+            break
+    return _write_all(recs)
