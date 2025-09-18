@@ -55,3 +55,8 @@ def deduct_leave_balance(username, leave_type, days):
             col_index = list(row.keys()).index(leave_type) + 1
             sheet.update_cell(i, col_index, new_value)
             break
+
+# ----------- Get All Leaves -----------
+def get_all_leaves():
+    sheet = get_leave_sheet()
+    return sheet.get_all_records()   # ✅ คืนค่าข้อมูลทั้งหมดในแท็บ
