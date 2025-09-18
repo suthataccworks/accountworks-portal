@@ -1,84 +1,36 @@
 import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
+from modules import leave_gsheet
 
+# ================== CONFIG ==================
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
-# ================= CSS =================
+# ================== CSS ==================
 st.markdown("""
     <style>
     body {
-        background: linear-gradient(135deg, #f8f9fa, #eef2f7);
-        font-family: 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #f9f9f9 0%, #e3f2fd 100%);
+        font-family: "Segoe UI", sans-serif;
     }
     .portal-title {
         text-align:center;
-        font-size:40px;
+        font-size:36px;
         font-weight:800;
         color:#2c3e50;
-        margin: 20px 0 40px 0;
-    }
-    .menu-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 25px;
-        max-width: 1000px;
-        margin: auto;
-    }
-    .menu-card {
-        background: white;
-        border-radius: 20px;
-        padding: 40px 20px;
-        text-align: center;
-        box-shadow: 0 8px 18px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    .menu-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-        background: #f0f8ff;
-    }
-    .menu-icon {
-        font-size: 55px;
-        margin-bottom: 15px;
-    }
-    .menu-title {
-        font-size: 22px;
-        font-weight: bold;
-        color: #2c3e50;
-        margin-bottom: 10px;
-    }
-    .menu-desc {
-        font-size: 15px;
-        color: #555;
-    }
-    .logout-btn {
-        display: block;
-        margin: 50px auto 0 auto;
-        background: #e74c3c;
-        color: white !important;
-        font-size: 18px;
-        font-weight: bold;
-        padding: 12px 35px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 6px 12px rgba(231,76,60,0.4);
-    }
-    .logout-btn:hover {
-        background: #c0392b;
+        margin-bottom: 30px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ================= SESSION =================
+# ================== SESSION ==================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user = None
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
-# ================= LOGIN =================
+# ================== LOGIN ==================
 def login_page():
     st.markdown("<div class='portal-title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
     st.subheader("เข้าสู่ระบบ")
@@ -93,63 +45,128 @@ def login_page():
         if user:
             st.session_state.logged_in = True
             st.session_state.user = user
-            st.session_state.page = "main"
+            st.session_state.page = "welcome"
             st.rerun()
         else:
             st.error("❌ Username หรือ Password ไม่ถูกต้อง")
 
-# ================= MAIN MENU =================
+# ================== WELCOME ==================
+def welcome_page():
+    user = st.session_state.user
+    st.markdown(
+        f"""
+        <div style="text-align:center; padding:40px;
+            background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius:20px; color:white; margin:30px auto; max-width:750px;">
+            <h1>👋 สวัสดีคุณ {user['Username']}</h1>
+            <p style="font-size:18px;">Role: <b>{user['Role']}</b></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns([1,1])
+    with col1:
+        if st.button("➡️ เข้าสู่เมนูหลัก", use_container_width=True):
+            st.session_state.page = "main"
+            st.rerun()
+    with col2:
+        if st.button("🚪 Logout", use_container_width=True, key="logout1"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            st.session_state.page = "login"
+            st.rerun()
+
+# ================== MAIN MENU ==================
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    user = st.session_state.user
-    role = user["Role"].lower()
+    col1, col2, col3 = st.columns(3)
 
-    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
-
-    # เมนูการ์ด
-    if st.button("🏖 ลางาน\n\nยื่นคำขอลา ตรวจสอบวันลา", key="leave", use_container_width=True):
-        st.session_state.page = "leave"
-        st.rerun()
-
-    if st.button("📦 จองคิวแมสเซ็นเจอร์\n\nจองแมสเพื่อส่งเอกสารและพัสดุ", key="messenger", use_container_width=True):
-        st.session_state.page = "messenger"
-        st.rerun()
-
-    if role == "admin":
-        if st.button("⚙️ จัดการผู้ใช้\n\nเพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ", key="user_mgmt", use_container_width=True):
-            st.session_state.page = "user_mgmt"
+    with col1:
+        if st.button("🏖 ลางาน", use_container_width=True):
+            st.session_state.page = "leave"
             st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    with col2:
+        if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
+            st.info("⏳ กำลังพัฒนา...")
 
-    # ปุ่ม Logout
-    st.write("")
-    st.write("")
-    if st.button("🚪 Logout", key="logout", use_container_width=False):
-        st.session_state.logged_in = False
-        st.session_state.user = None
-        st.session_state.page = "login"
+    with col3:
+        if st.session_state.user["Role"].lower() in ["admin", "manager"]:
+            if st.button("📝 ตรวจสอบการลา", use_container_width=True):
+                st.session_state.page = "leave_admin"
+                st.rerun()
+
+    st.divider()
+    colA, colB, colC = st.columns([1,1,1])
+    with colB:
+        if st.button("🚪 Logout", use_container_width=True, key="logout2"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            st.session_state.page = "login"
+            st.rerun()
+
+# ================== LEAVE FORM ==================
+def leave_form():
+    st.subheader("🏖 แบบฟอร์มการลา")
+
+    leave_type = st.selectbox("ประเภทการลา", ["ลากิจ", "ลาป่วย", "ลาพักร้อน"])
+    start_date = st.date_input("วันที่เริ่มลา", datetime.date.today())
+    end_date = st.date_input("วันที่สิ้นสุด")
+    reason = st.text_area("เหตุผลการลา")
+
+    if st.button("✅ ส่งคำขอลา", use_container_width=True):
+        leave_gsheet.submit_leave(
+            st.session_state.user["Username"],
+            leave_type,
+            str(start_date),
+            str(end_date),
+            reason
+        )
+        st.success("📌 ส่งคำขอลาเรียบร้อยแล้ว (รอหัวหน้าอนุมัติ)")
+        st.session_state.page = "main"
         st.rerun()
 
-# ================= ROUTER =================
+    if st.button("⬅️ กลับเมนูหลัก", use_container_width=True):
+        st.session_state.page = "main"
+        st.rerun()
+
+# ================== LEAVE ADMIN (Approve) ==================
+def leave_admin():
+    st.subheader("📝 ตรวจสอบการลา (สำหรับหัวหน้า/Admin)")
+
+    leaves = leave_gsheet.get_all_leaves()
+    if not leaves:
+        st.info("✅ ยังไม่มีคำขอลา")
+    else:
+        st.table(leaves)
+
+    approve_user = st.text_input("ชื่อผู้ใช้ที่ต้องการอนุมัติ")
+    if st.button("✅ อนุมัติ"):
+        leave_gsheet.update_leave_status(approve_user, "Approved")
+        st.success(f"✅ อนุมัติการลา {approve_user} แล้ว")
+        st.rerun()
+
+    reject_user = st.text_input("ชื่อผู้ใช้ที่ต้องการปฏิเสธ")
+    if st.button("❌ ปฏิเสธ"):
+        leave_gsheet.update_leave_status(reject_user, "Rejected")
+        st.warning(f"❌ ปฏิเสธการลา {reject_user} แล้ว")
+        st.rerun()
+
+    if st.button("⬅️ กลับเมนูหลัก", use_container_width=True):
+        st.session_state.page = "main"
+        st.rerun()
+
+# ================== ROUTER ==================
 if not st.session_state.logged_in:
     login_page()
 else:
-    if st.session_state.page == "main":
+    if st.session_state.page == "welcome":
+        welcome_page()
+    elif st.session_state.page == "main":
         main_menu()
     elif st.session_state.page == "leave":
-        st.subheader("📌 ฟอร์มการลา (กำลังพัฒนา)")
-        if st.button("⬅️ กลับเมนูหลัก"):
-            st.session_state.page = "main"
-            st.rerun()
-    elif st.session_state.page == "messenger":
-        st.subheader("📌 ระบบจองคิวแมสเซ็นเจอร์ (กำลังพัฒนา)")
-        if st.button("⬅️ กลับเมนูหลัก"):
-            st.session_state.page = "main"
-            st.rerun()
-    elif st.session_state.page == "user_mgmt":
-        st.subheader("📌 จัดการผู้ใช้ (Admin Only)")
-        if st.button("⬅️ กลับเมนูหลัก"):
-            st.session_state.page = "main"
-            st.rerun()
+        leave_form()
+    elif st.session_state.page == "leave_admin":
+        leave_admin()
