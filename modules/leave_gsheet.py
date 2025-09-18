@@ -13,7 +13,7 @@ def get_client():
 # ----------- Leave Requests Sheet -----------
 def get_leave_sheet():
     client = get_client()
-    return client.open("LeaveRequests").worksheet("leaves")  # ✅ เก็บคำขอลา
+    return client.open("LeaveRequests").worksheet("LeaveRequests")  # ✅ เก็บคำขอลา
 
 # ----------- Employee Balance Sheet (ใน LeaveManagement) -----------
 def get_balance_sheet():
