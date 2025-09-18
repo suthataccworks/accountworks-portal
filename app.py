@@ -131,8 +131,7 @@ else:
         st.subheader("📌 Main Menu")
 
         # ✅ Responsive menu การ์ด
-        st.markdown(
-            """
+        menu_html = """
             <div class="menu-grid">
                 <div onclick="window.parent.streamlitSend('leave_form')" class="menu-card">
                     <div class="menu-icon">🏖</div>
@@ -144,10 +143,21 @@ else:
                     <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
                     <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
                 </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        """
+
+        # ✅ ถ้า Role เป็น Admin → เพิ่มเมนู "จัดการผู้ใช้"
+        if user["Role"].lower() == "admin":
+            menu_html += """
+                <div onclick="window.parent.streamlitSend('user_mgmt')" class="menu-card">
+                    <div class="menu-icon">⚙️</div>
+                    <div class="menu-title">จัดการผู้ใช้</div>
+                    <div class="menu-desc">เพิ่ม/ลบ/แก้ไข ผู้ใช้งานในระบบ</div>
+                </div>
+            """
+
+        menu_html += "</div>"  # ปิด grid
+
+        st.markdown(menu_html, unsafe_allow_html=True)
 
         st.divider()
         colA, colB = st.columns([1,1])
@@ -180,6 +190,14 @@ else:
             st.session_state.page = "main"
             st.rerun()
 
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
+
+    # ----------- User Management (เฉพาะ Admin) -----------
+    elif st.session_state.page == "user_mgmt":
+        st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
+        st.info("⏳ หน้านี้เอาไว้เพิ่ม/ลบผู้ใช้ (จะเชื่อม Google Sheet ภายหลัง)")
         if st.button("⬅️ กลับเมนูหลัก"):
             st.session_state.page = "main"
             st.rerun()
