@@ -1,6 +1,7 @@
 # modules/auth_supabase.py
 import psycopg2
 import os
+import bcrypt
 
 # ดึงค่าจาก Environment Variables (ไปตั้งค่าใน Streamlit Cloud หรือ .env)
 DB_URL = os.getenv("SUPABASE_DB_URL")
@@ -12,14 +13,29 @@ def init_db():
     # Supabase เราสร้างตารางแล้ว เลยไม่ต้องทำอะไร
     pass
 
-def get_user(username, password):
+# ---------------- USER FUNCTIONS ----------------
+
+def add_user(username, password, role="User"):
+    """เพิ่มผู้ใช้ใหม่ โดยเข้ารหัส password ด้วย bcrypt"""
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, username, password, role FROM users WHERE username=%s AND password=%s",
-                (username, password))
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                (username, hashed, role))
+    conn.commit()
+    conn.close()
+
+def get_user(username, password):
+    """ตรวจสอบ user โดยเปรียบเทียบ bcrypt hash"""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, password, role FROM users WHERE username=%s", (username,))
     user = cur.fetchone()
     conn.close()
-    return user
+
+    if user and bcrypt.checkpw(password.encode("utf-8"), user[2].encode("utf-8")):
+        return user
+    return None
 
 def get_all_users():
     conn = get_connection()
@@ -29,14 +45,6 @@ def get_all_users():
     conn.close()
     return users
 
-def add_user(username, password, role="User"):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
-                (username, password, role))
-    conn.commit()
-    conn.close()
-
 def delete_user(username):
     conn = get_connection()
     cur = conn.cursor()
@@ -45,9 +53,11 @@ def delete_user(username):
     conn.close()
 
 def update_user(username, new_password, new_role):
+    """อัปเดตรหัสผ่าน + role"""
     conn = get_connection()
     cur = conn.cursor()
+    hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     cur.execute("UPDATE users SET password=%s, role=%s WHERE username=%s",
-                (new_password, new_role, username))
+                (hashed, new_role, username))
     conn.commit()
     conn.close()
