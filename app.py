@@ -256,4 +256,3 @@ else:
     elif st.session_state.page == "leave_form":
         leave_form()
 
-
