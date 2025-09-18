@@ -1,47 +1,48 @@
 import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
-import streamlit as st
 
+# ================= CONFIG =================
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
-# ========== CSS ==========
+# ================= CSS =================
 st.markdown("""
     <style>
+    body {
+        background: linear-gradient(135deg, #f8f9fa, #eef2f7);
+        font-family: 'Segoe UI', sans-serif;
+    }
     .portal-title {
         text-align:center;
-        font-size:38px;
+        font-size:40px;
         font-weight:800;
         color:#2c3e50;
-        margin-bottom: 30px;
+        margin: 20px 0 40px 0;
     }
-    .menu-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    .menu-container {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
         gap: 30px;
-        margin: 40px auto;
-        max-width: 1000px;
     }
     .menu-card {
+        width: 280px;
+        height: 200px;
         background: white;
-        padding: 40px 20px;
         border-radius: 18px;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
         text-align: center;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        padding: 30px 20px;
         transition: all 0.3s ease;
         cursor: pointer;
-        height: 200px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
     }
     .menu-card:hover {
         transform: translateY(-8px);
-        box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        box-shadow: 0 15px 25px rgba(0,0,0,0.15);
         background: #f0f8ff;
     }
     .menu-icon {
-        font-size: 60px;
+        font-size: 50px;
         margin-bottom: 15px;
     }
     .menu-title {
@@ -56,70 +57,103 @@ st.markdown("""
     }
     .logout-btn {
         display: block;
-        margin: 50px auto;
+        margin: 60px auto 0 auto;
         background: #e74c3c;
         color: white !important;
         font-size: 18px;
         font-weight: bold;
-        padding: 12px 30px;
+        padding: 12px 35px;
         border-radius: 12px;
         text-align: center;
+        box-shadow: 0 6px 12px rgba(231,76,60,0.4);
+        text-decoration: none;
+    }
+    .logout-btn:hover {
+        background: #c0392b;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ========== SESSION ==========
+# ================= SESSION =================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user = None
 if "page" not in st.session_state:
-    st.session_state.page = "main"
+    st.session_state.page = "login"
 
-# ========== MAIN MENU ==========
+# ================= LOGIN =================
+def login_page():
+    st.markdown("<div class='portal-title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
+    st.subheader("เข้าสู่ระบบ")
+
+    with st.form("login_form", clear_on_submit=True):
+        username = st.text_input("👤 Username")
+        password = st.text_input("🔑 Password", type="password")
+        submitted = st.form_submit_button("Login")
+
+    if submitted:
+        user = auth.check_login(username, password)
+        if user:
+            st.session_state.logged_in = True
+            st.session_state.user = user
+            st.session_state.page = "main"
+            st.rerun()
+        else:
+            st.error("❌ Username หรือ Password ไม่ถูกต้อง")
+
+# ================= MAIN MENU =================
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
+    user = st.session_state.user
+    role = user["Role"].lower()
 
-    # ใช้ st.markdown + form แทน st.button → ให้คลิกได้ทั้ง card
-    with st.form("leave_form_btn"):
-        if st.form_submit_button(
-            "🏖 ลางาน\nยื่นคำขอลา ตรวจสอบวันลา",
-            use_container_width=True
-        ):
-            st.session_state.page = "leave_form"
-            st.rerun()
+    st.markdown('<div class="menu-container">', unsafe_allow_html=True)
 
-    with st.form("messenger_btn"):
-        if st.form_submit_button(
-            "📦 จองคิวแมสเซ็นเจอร์\nจองแมสเพื่อส่งเอกสารและพัสดุ",
-            use_container_width=True
-        ):
-            st.session_state.page = "messenger"
-            st.rerun()
+    # เมนูการ์ด
+    st.markdown("""
+        <div class="menu-card" onclick="window.parent.location.href='?page=leave'">
+            <div class="menu-icon">🏖</div>
+            <div class="menu-title">ลางาน</div>
+            <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลา</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    with st.form("user_mgmt_btn"):
-        if st.form_submit_button(
-            "⚙️ จัดการผู้ใช้\nเพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ",
-            use_container_width=True
-        ):
-            st.session_state.page = "user_mgmt"
-            st.rerun()
+    st.markdown("""
+        <div class="menu-card" onclick="window.parent.location.href='?page=messenger'">
+            <div class="menu-icon">📦</div>
+            <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
+            <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    if role == "admin":
+        st.markdown("""
+            <div class="menu-card" onclick="window.parent.location.href='?page=user_mgmt'">
+                <div class="menu-icon">⚙️</div>
+                <div class="menu-title">จัดการผู้ใช้</div>
+                <div class="menu-desc">เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # Logout ปุ่มตรงกลาง
-    st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
-    if st.button("🚪 Logout", key="logout_center"):
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ปุ่ม Logout ตรงกลาง
+    if st.markdown('<a class="logout-btn" href="?page=login">🚪 Logout</a>', unsafe_allow_html=True):
+        st.session_state.logged_in = False
+        st.session_state.user = None
         st.session_state.page = "login"
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# ========== ROUTER ==========
-if st.session_state.page == "main":
-    main_menu()
-elif st.session_state.page == "leave_form":
-    st.write("📄 หน้าฟอร์มการลา (ยังไม่ทำ)")
-elif st.session_state.page == "messenger":
-    st.write("📦 หน้าจองคิวแมส (ยังไม่ทำ)")
-elif st.session_state.page == "user_mgmt":
-    st.write("⚙️ หน้าจัดการผู้ใช้ (ยังไม่ทำ)")
-elif st.session_state.page == "login":
-    st.write("🔑 หน้าล็อกอิน (ยังไม่ทำ)")
+# ================= ROUTER =================
+if not st.session_state.logged_in:
+    login_page()
+else:
+    if st.session_state.page == "main":
+        main_menu()
+    elif st.session_state.page == "leave":
+        st.write("📌 ฟอร์มการลา (กำลังพัฒนา)")
+    elif st.session_state.page == "messenger":
+        st.write("📌 ระบบจองคิวแมสเซ็นเจอร์ (กำลังพัฒนา)")
+    elif st.session_state.page == "user_mgmt":
+        st.write("📌 จัดการผู้ใช้ (Admin Only)")
