@@ -10,6 +10,13 @@ st.markdown(
     body {
         background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
     }
+    /* Title */
+    .title {
+        text-align: center;
+        font-size: 36px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
     /* Welcome Card */
     .welcome-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,14 +25,16 @@ st.markdown(
         text-align: center;
         color: white;
         box-shadow: 0 6px 25px rgba(0,0,0,0.25);
-        margin-bottom: 40px;
+        margin: 30px auto;
+        max-width: 700px;
     }
     /* Menu Grid */
     .menu-grid {
         display: flex;
         justify-content: center;
-        gap: 40px;
-        margin-top: 40px;
+        align-items: center;
+        gap: 50px;
+        margin-top: 50px;
         flex-wrap: wrap;
     }
     .menu-card {
@@ -70,13 +79,13 @@ if "page" not in st.session_state:
     st.session_state.page = "welcome"
 
 # ================== Title ==================
-st.markdown("<h1 style='text-align:center;'>🔐 AccountWorks Portal</h1>", unsafe_allow_html=True)
+st.markdown("<div class='title'>🔐 AccountWorks Portal</div>", unsafe_allow_html=True)
 
 # ================== Login Form ==================
 if not st.session_state.logged_in:
     st.subheader("🔑 Please login")
 
-    with st.form("login_form"):
+    with st.form("login_form", clear_on_submit=True):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
