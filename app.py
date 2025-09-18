@@ -2,7 +2,6 @@ import streamlit as st
 import datetime
 from modules import auth_gsheet as auth
 
-
 # ========== CONFIG ==========
 st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
@@ -20,12 +19,6 @@ st.markdown("""
         color:#2c3e50;
         margin-bottom: 30px;
     }
-    .menu-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 25px;
-        margin-top: 30px;
-    }
     .menu-card {
         background: white;
         padding: 30px;
@@ -40,28 +33,21 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(0,0,0,0.15);
     }
     .menu-icon {
-        font-size: 55px;
-        margin-bottom: 15px;
+        font-size: 50px;
+        margin-bottom: 12px;
     }
     .menu-title {
         font-size: 20px;
         font-weight: bold;
+        margin-bottom: 5px;
         color: #2c3e50;
     }
     .menu-desc {
         font-size: 14px;
         color: #555;
-        margin-top: 5px;
-    }
-    .logout-btn {
-        background: #e74c3c;
-        color: white !important;
-        border-radius: 10px;
-        padding: 8px 18px;
     }
     </style>
 """, unsafe_allow_html=True)
-
 
 # ========== SESSION ==========
 if "logged_in" not in st.session_state:
@@ -69,7 +55,6 @@ if "logged_in" not in st.session_state:
     st.session_state.user = None
 if "page" not in st.session_state:
     st.session_state.page = "login"
-
 
 # ========== LOGIN ==========
 def login_page():
@@ -90,7 +75,6 @@ def login_page():
             st.rerun()
         else:
             st.error("❌ Username หรือ Password ไม่ถูกต้อง")
-
 
 # ========== WELCOME ==========
 def welcome_page():
@@ -119,39 +103,29 @@ def welcome_page():
             st.session_state.page = "login"
             st.rerun()
 
-
 # ========== MAIN MENU ==========
 def main_menu():
     st.markdown("<div class='portal-title'>📌 Main Menu</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
 
-    st.markdown(f"""
-        <div class="menu-card" onclick="window.parent.streamlitSend('leave_form')">
-            <div class="menu-icon">🏖</div>
-            <div class="menu-title">ลางาน</div>
-            <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลา</div>
-        </div>
-    """, unsafe_allow_html=True)
+    with col1:
+        if st.button("🏖 ลางาน", use_container_width=True):
+            st.session_state.page = "leave_form"
+            st.rerun()
+        st.caption("ยื่นคำขอลา ตรวจสอบวันลา")
 
-    st.markdown(f"""
-        <div class="menu-card" onclick="window.parent.streamlitSend('messenger')">
-            <div class="menu-icon">📦</div>
-            <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
-            <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
-        </div>
-    """, unsafe_allow_html=True)
+    with col2:
+        if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
+            st.info("⏳ ฟีเจอร์กำลังพัฒนา...")
+        st.caption("จองแมสเพื่อส่งเอกสารและพัสดุ")
 
     if st.session_state.user["Role"].lower() == "admin":
-        st.markdown(f"""
-            <div class="menu-card" onclick="window.parent.streamlitSend('user_mgmt')">
-                <div class="menu-icon">⚙️</div>
-                <div class="menu-title">จัดการผู้ใช้</div>
-                <div class="menu-desc">เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        with col3:
+            if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
+                st.session_state.page = "user_mgmt"
+                st.rerun()
+            st.caption("เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ")
 
     st.divider()
     if st.button("⬅️ กลับ Welcome"):
@@ -162,7 +136,6 @@ def main_menu():
         st.session_state.user = None
         st.session_state.page = "login"
         st.rerun()
-
 
 # ========== LEAVE FORM ==========
 def leave_form():
@@ -180,7 +153,6 @@ def leave_form():
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
-
 
 # ========== USER MANAGEMENT ==========
 def user_management():
@@ -217,7 +189,6 @@ def user_management():
     if st.button("⬅️ กลับเมนูหลัก"):
         st.session_state.page = "main"
         st.rerun()
-
 
 # ========== ROUTER ==========
 if not st.session_state.logged_in:
