@@ -10,14 +10,12 @@ st.markdown(
     body {
         background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
     }
-    /* Title */
     .title {
         text-align: center;
         font-size: 36px;
         font-weight: bold;
         margin-bottom: 20px;
     }
-    /* Welcome Card */
     .welcome-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 50px;
@@ -28,18 +26,7 @@ st.markdown(
         margin: 30px auto;
         max-width: 700px;
     }
-    /* Menu Grid */
-    .menu-grid {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 50px;
-        margin-top: 50px;
-        flex-wrap: wrap;
-    }
     .menu-card {
-        width: 260px;
-        height: 220px;
         border-radius: 20px;
         padding: 30px;
         background: white;
@@ -49,17 +36,17 @@ st.markdown(
         cursor: pointer;
     }
     .menu-card:hover {
-        transform: translateY(-10px) scale(1.05);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+        transform: translateY(-8px) scale(1.03);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.2);
     }
     .menu-icon {
-        font-size: 60px;
-        margin-bottom: 15px;
+        font-size: 50px;
+        margin-bottom: 10px;
     }
     .menu-title {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: bold;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
         color: #2c3e50;
     }
     .menu-desc {
@@ -133,33 +120,31 @@ else:
     elif st.session_state.page == "main":
         st.subheader("📌 Main Menu")
 
-        st.markdown('<div class="menu-grid">', unsafe_allow_html=True)
+        col1, col2 = st.columns([1,1])  # แบ่งเป็น 2 คอลัมน์
 
-        # การ์ด: ลางาน
-        st.markdown(
-            """
-            <div class="menu-card" onclick="window.location.reload();">
-                <div class="menu-icon">🏖</div>
-                <div class="menu-title">ลางาน</div>
-                <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลาคงเหลือ</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        with col1:
+            st.markdown(
+                """
+                <div class="menu-card">
+                    <div class="menu-icon">🏖</div>
+                    <div class="menu-title">ลางาน</div>
+                    <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลาคงเหลือ</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        # การ์ด: จองแมสเซ็นเจอร์
-        st.markdown(
-            """
-            <div class="menu-card" onclick="window.location.reload();">
-                <div class="menu-icon">📦</div>
-                <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
-                <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown('</div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(
+                """
+                <div class="menu-card">
+                    <div class="menu-icon">📦</div>
+                    <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
+                    <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         st.divider()
         colA, colB = st.columns([1,1])
