@@ -34,7 +34,6 @@ st.markdown("""
         text-align: center;
         padding: 30px 20px;
         transition: all 0.3s ease;
-        cursor: pointer;
     }
     .menu-card:hover {
         transform: translateY(-8px);
@@ -66,7 +65,6 @@ st.markdown("""
         border-radius: 12px;
         text-align: center;
         box-shadow: 0 6px 12px rgba(231,76,60,0.4);
-        text-decoration: none;
     }
     .logout-btn:hover {
         background: #c0392b;
@@ -110,36 +108,30 @@ def main_menu():
 
     st.markdown('<div class="menu-container">', unsafe_allow_html=True)
 
-    # เมนูการ์ด
-    st.markdown("""
-        <div class="menu-card" onclick="window.parent.location.href='?page=leave'">
-            <div class="menu-icon">🏖</div>
-            <div class="menu-title">ลางาน</div>
-            <div class="menu-desc">ยื่นคำขอลา ตรวจสอบวันลา</div>
-        </div>
-    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
 
-    st.markdown("""
-        <div class="menu-card" onclick="window.parent.location.href='?page=messenger'">
-            <div class="menu-icon">📦</div>
-            <div class="menu-title">จองคิวแมสเซ็นเจอร์</div>
-            <div class="menu-desc">จองแมสเพื่อส่งเอกสารและพัสดุ</div>
-        </div>
-    """, unsafe_allow_html=True)
+    with col1:
+        if st.button("🏖 ลางาน", use_container_width=True):
+            st.session_state.page = "leave"
+            st.rerun()
 
-    if role == "admin":
-        st.markdown("""
-            <div class="menu-card" onclick="window.parent.location.href='?page=user_mgmt'">
-                <div class="menu-icon">⚙️</div>
-                <div class="menu-title">จัดการผู้ใช้</div>
-                <div class="menu-desc">เพิ่ม/แก้ไข/ลบ ผู้ใช้งานระบบ</div>
-            </div>
-        """, unsafe_allow_html=True)
+    with col2:
+        if st.button("📦 จองคิวแมสเซ็นเจอร์", use_container_width=True):
+            st.session_state.page = "messenger"
+            st.rerun()
+
+    with col3:
+        if role == "admin":
+            if st.button("⚙️ จัดการผู้ใช้", use_container_width=True):
+                st.session_state.page = "user_mgmt"
+                st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ปุ่ม Logout ตรงกลาง
-    if st.markdown('<a class="logout-btn" href="?page=login">🚪 Logout</a>', unsafe_allow_html=True):
+    st.write("")
+    st.write("")
+    if st.button("🚪 Logout", key="logout", use_container_width=False):
         st.session_state.logged_in = False
         st.session_state.user = None
         st.session_state.page = "login"
@@ -152,8 +144,17 @@ else:
     if st.session_state.page == "main":
         main_menu()
     elif st.session_state.page == "leave":
-        st.write("📌 ฟอร์มการลา (กำลังพัฒนา)")
+        st.subheader("📌 ฟอร์มการลา (กำลังพัฒนา)")
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
     elif st.session_state.page == "messenger":
-        st.write("📌 ระบบจองคิวแมสเซ็นเจอร์ (กำลังพัฒนา)")
+        st.subheader("📌 ระบบจองคิวแมสเซ็นเจอร์ (กำลังพัฒนา)")
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
     elif st.session_state.page == "user_mgmt":
-        st.write("📌 จัดการผู้ใช้ (Admin Only)")
+        st.subheader("📌 จัดการผู้ใช้ (Admin Only)")
+        if st.button("⬅️ กลับเมนูหลัก"):
+            st.session_state.page = "main"
+            st.rerun()
