@@ -1,6 +1,20 @@
 import httpx
+import streamlit as st
+from supabase import create_client
+
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def get_all_users():
+    result = supabase.table("users").select("id, username, role").execute()
+    return result.data
 
 def test_connection():
+    """
+    ใช้ทดสอบว่าเชื่อมต่อ Supabase ได้จริงหรือไม่
+    """
     url = f"{SUPABASE_URL}/rest/v1/"
     headers = {
         "apikey": SUPABASE_KEY,
