@@ -35,6 +35,8 @@ def first_user_setup():
             st.warning("⚠️ กรุณากรอกข้อมูลให้ครบ")
 
 # ---------------- Login UI ----------------
+auth_sqlite.test_connection()
+
 def login_ui():
     # ถ้า DB ยังไม่มี user → ให้ไปหน้า first_user_setup
     users = auth_sqlite.get_all_users()
@@ -164,6 +166,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 else:
     main_app()
+
 
 
 
