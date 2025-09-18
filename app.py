@@ -1,56 +1,56 @@
 import streamlit as st
 from modules import auth_gsheet as auth
 
-st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="centered")
+st.set_page_config(page_title="AccountWorks Portal", page_icon="🔐", layout="wide")
 
 # ================== Custom CSS ==================
 st.markdown(
     """
     <style>
     body {
-        background-color: #f5f7fa;
+        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
     }
     /* Welcome Card */
     .welcome-card {
-        background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-        padding: 40px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 50px;
         border-radius: 20px;
         text-align: center;
         color: white;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        margin-bottom: 30px;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.25);
+        margin-bottom: 40px;
     }
     /* Menu Grid */
     .menu-grid {
         display: flex;
         justify-content: center;
         gap: 40px;
+        margin-top: 40px;
         flex-wrap: wrap;
-        margin-top: 30px;
     }
     .menu-card {
-        width: 240px;
-        height: 200px;
+        width: 260px;
+        height: 220px;
         border-radius: 20px;
-        padding: 25px;
-        background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
-        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+        padding: 30px;
+        background: white;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         text-align: center;
         transition: all 0.3s ease;
         cursor: pointer;
     }
     .menu-card:hover {
-        transform: translateY(-8px) scale(1.02);
-        box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+        transform: translateY(-10px) scale(1.05);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
     }
     .menu-icon {
-        font-size: 55px;
+        font-size: 60px;
         margin-bottom: 15px;
     }
     .menu-title {
         font-size: 22px;
         font-weight: bold;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         color: #2c3e50;
     }
     .menu-desc {
@@ -108,7 +108,7 @@ else:
             unsafe_allow_html=True
         )
 
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1,1])
         with col1:
             if st.button("➡️ เข้าสู่เมนูหลัก"):
                 st.session_state.page = "main"
@@ -153,7 +153,7 @@ else:
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.divider()
-        colA, colB = st.columns(2)
+        colA, colB = st.columns([1,1])
         with colA:
             if st.button("⬅️ กลับไปหน้า Welcome"):
                 st.session_state.page = "welcome"
