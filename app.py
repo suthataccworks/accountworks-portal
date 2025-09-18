@@ -1,7 +1,7 @@
 import streamlit as st
 import modules.auth_gsheet as auth
 
-st.title("🔐 Google Sheet Login")
+st.title("🔐 AccountWorks Portal")
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -26,3 +26,4 @@ else:
         st.session_state.logged_in = False
         st.session_state.user = None
         st.experimental_rerun()
+
