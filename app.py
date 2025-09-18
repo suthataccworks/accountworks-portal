@@ -130,23 +130,15 @@ def leave_form():
 def user_management():
     st.subheader("⚙️ จัดการผู้ใช้ (Admin Only)")
 
-    # ค้นหา
-    keyword = st.text_input("🔍 ค้นหา Username")
-    role_filter = st.selectbox("กรองตาม Role", ["ทั้งหมด", "Admin", "User", "Staff"])
-    role_val = None if role_filter == "ทั้งหมด" else role_filter
-
-    users = auth.search_users(keyword, role_val)
-
-    # ซ่อนรหัส
-    for u in users:
-        u["Password"] = "******"
-
+    # แสดงผู้ใช้ทั้งหมด (รหัสถูกซ่อน)
+    users = auth.get_all_users(mask_password=True)
+    st.write("### 👥 รายชื่อผู้ใช้")
     st.table(users)
 
     st.divider()
 
-    # เพิ่มผู้ใช้ใหม่
-    st.markdown("### ➕ เพิ่มผู้ใช้ใหม่")
+    # เพิ่มผู้ใช้
+    st.write("### ➕ เพิ่มผู้ใช้ใหม่")
     new_user = st.text_input("Username (ใหม่)")
     new_pass = st.text_input("Password (ใหม่)", type="password")
     new_role = st.selectbox("Role", ["Admin", "User", "Staff"], key="new_role")
@@ -157,6 +149,40 @@ def user_management():
             st.rerun()
         else:
             st.error(msg)
+
+    st.divider()
+
+    # แก้ไขผู้ใช้
+    st.write("### 📝 แก้ไขผู้ใช้")
+    target_user = st.text_input("Username ที่ต้องการแก้ไข")
+    upd_pass = st.text_input("รหัสผ่านใหม่", type="password")
+    upd_role = st.selectbox("Role ใหม่", ["Admin", "User", "Staff"], key="upd_role")
+    if st.button("💾 บันทึกการแก้ไข"):
+        ok, msg = auth.update_user(target_user, upd_pass, upd_role)
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
+    st.divider()
+
+    # ลบผู้ใช้
+    st.write("### ❌ ลบผู้ใช้")
+    del_user = st.text_input("Username ที่ต้องการลบ")
+    if st.button("🗑 ลบผู้ใช้"):
+        ok, msg = auth.delete_user(del_user)
+        if ok:
+            st.warning(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
+    st.divider()
+    if st.button("⬅️ กลับเมนูหลัก"):
+        st.session_state.page = "main"
+        st.rerun()
+
 
 
     if st.button("⬅️ กลับเมนูหลัก"):
@@ -175,4 +201,5 @@ else:
         leave_form()
     elif st.session_state.page == "user_mgmt":
         user_management()
+
 
