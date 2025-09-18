@@ -13,4 +13,8 @@ supabase
 streamlit
 gspread
 oauth2client
+streamlit
+gspread
+google-auth
+
 
