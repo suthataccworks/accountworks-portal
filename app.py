@@ -106,7 +106,7 @@ def _topbar():
           <div style='display:flex;gap:12px;align-items:center;'>
             <div style="width:36px;height:36px;border-radius:12px;background:#e8f0ff;display:grid;place-items:center;">🏢</div>
             <div>
-              <div style="font-weight:800;">ระบบบริษัท</div>
+              <div style="font-weight:800;">AccountWorks</div>
               <div class="meta">Company Management System</div>
             </div>
           </div>
@@ -410,4 +410,5 @@ else:
         leave_form()
     else:
         st.session_state.page = "main"; st.rerun()
+
 
