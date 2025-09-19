@@ -137,8 +137,6 @@ def login_page():
         st.markdown("<div class='login-title'>AccountWorks</div>", unsafe_allow_html=True)
         st.markdown("<div class='login-sub'>เข้าสู่ระบบด้วยบัญชีของคุณ</div>", unsafe_allow_html=True)
 
-        
-
         with st.form("login_form", clear_on_submit=False):
             username = st.text_input("👤 Username", value=st.session_state.user.get("Username","") if st.session_state.user else "")
             password = st.text_input("🔑 Password", type="password")
@@ -154,15 +152,17 @@ def login_page():
                 st.error(f"เกิดข้อผิดพลาดระหว่างตรวจสอบผู้ใช้: {e}")
                 return
 
-            if user:
-                user.setdefault("Username", username)
-                user["Role"] = _norm_role(user.get("Role", "user"))
-                st.session_state.logged_in = True
-                st.session_state.user = user
-                st.session_state.page = "main"
-                st.rerun()
-            else:
-                st.error("❌ Username หรือ Password ไม่ถูกต้อง")
+            # ✅ อนุญาตเฉพาะผู้ใช้ที่ยืนยันจาก Google Sheet เท่านั้น
+            if user and user.get("_verified") is True and user.get("_source") == "gsheet":
+                sheet_uname = str(user.get("Username","")).strip().lower()
+                if sheet_uname == str(username).strip().lower():
+                    user["Role"] = _norm_role(user.get("Role", "user"))
+                    st.session_state.logged_in = True
+                    st.session_state.user = user
+                    st.session_state.page = "main"
+                    st.rerun()
+
+            st.error("❌ Username หรือ Password ไม่ถูกต้อง")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -208,14 +208,12 @@ def user_management():
         st.error(f"อ่านรายการผู้ใช้ไม่ได้: {e}")
         users_df = _to_df([])
 
-    # Table สวย ๆ ( DataFrame ก็ได้ แต่ทำหัวตารางเองให้คล้ายภาพ)
     st.markdown("""
     <div class='table-head'>ชื่อ | อีเมล/ชื่อผู้ใช้ | แผนก | บทบาท | สถานะ | การจัดการ</div>
     """, unsafe_allow_html=True)
     if users_df.empty:
         st.markdown("<div class='card'>ไม่มีข้อมูลผู้ใช้</div>", unsafe_allow_html=True)
     else:
-        # map คอลัมน์อย่างยืดหยุ่น
         cols_map = {c.lower(): c for c in users_df.columns}
         for _, r in users_df.iterrows():
             name = r.get(cols_map.get("displayname","DisplayName"), r.get(cols_map.get("name","Name"), r.get(cols_map.get("username","Username"), "-")))
@@ -286,7 +284,6 @@ def leave_form():
     _topbar()
     st.subheader("🏖 แบบฟอร์มการลา")
 
-    # ค่าเริ่มต้นที่ปลอดภัยเสมอ
     today = datetime.date.today()
     col1, col2 = st.columns(2)
     with col1:
@@ -331,7 +328,6 @@ def leave_form():
         is_admin = _norm_role(st.session_state.user.get("Role")) == "admin"
         is_owner = leave.get("Username") == st.session_state.user.get("Username")
 
-        # คนที่ไม่ใช่ admin เห็นเฉพาะของตัวเอง
         if not is_admin and not is_owner:
             continue
 
@@ -341,17 +337,12 @@ def leave_form():
 
             # เจ้าของคำขอ (Pending) → แก้ไข/ยกเลิกได้
             if (not is_admin) and is_owner and status == "Pending":
-                new_type = st.selectbox(
-                    "แก้ไขประเภทลา",
-                    ["ลากิจ","ลาป่วย","ลาพักร้อน"],
-                    index=["ลากิจ","ลาป่วย","ลาพักร้อน"].index(leave.get("LeaveType","ลากิจ")),
-                    key=f"type_{idx}"
-                )
-
+                types = ["ลากิจ","ลาป่วย","ลาพักร้อน"]
                 def _parse_date(s, fallback=today):
                     try: return datetime.date.fromisoformat(str(s))
                     except Exception: return fallback
 
+                new_type = st.selectbox("แก้ไขประเภทลา", types, index=types.index(leave.get("LeaveType","ลากิจ")), key=f"type_{idx}")
                 new_start = st.date_input("แก้ไขวันที่เริ่ม", _parse_date(leave.get("StartDate"), today), key=f"start_{idx}")
                 new_end   = st.date_input("แก้ไขวันที่สิ้นสุด", _parse_date(leave.get("EndDate"), today), key=f"end_{idx}")
                 new_reason= st.text_area("แก้ไขเหตุผล", leave.get("Reason",""), key=f"reason_{idx}")
@@ -410,6 +401,3 @@ else:
         leave_form()
     else:
         st.session_state.page = "main"; st.rerun()
-
-
-
