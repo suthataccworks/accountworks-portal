@@ -1,8 +1,9 @@
 # app.py — AccountWorks Portal (Lovable UI) + Google Sheets backend
-# ใช้ modules เดิม: modules/auth_gsheet.py และ modules/leave_gsheet.py
+# ใช้ modules: modules/auth_gsheet.py, modules/leave_gsheet.py
 
 import streamlit as st
 import datetime
+import traceback
 from modules import auth_gsheet as auth
 from modules import leave_gsheet
 
@@ -21,7 +22,7 @@ a.muted{color:#64748b;text-decoration:none;}
 
 .topbar{position:sticky;top:0;z-index:99;backdrop-filter:saturate(180%) blur(8px);
   background:rgba(255,255,255,.8);border-bottom:1px solid var(--border);padding:.6rem 0;}
-.icon{width:32px;height:32px;border-radius:10px;background:#f1f5f9;display:grid;place-items:center;}
+.icon{width:32px;height:32px;border-radius:12px;background:#f1f5f9;display:grid;place-items:center;}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
   font-size:.78rem;border:1px solid var(--border);background:#f8fafc;}
 .pill.admin{background:#fee2e2;border-color:#fecaca;color:#991b1b;font-weight:600;}
@@ -63,7 +64,6 @@ if "page" not in st.session_state:
 
 # ========================= HELPERS =========================
 def _norm_role(role: str) -> str:
-    """normalize role string -> admin|user|staff"""
     if not role: return "user"
     r = str(role).strip().lower()
     if r in ("admin","administrator"): return "admin"
@@ -124,10 +124,6 @@ def _topbar():
     </div>
     """, unsafe_allow_html=True)
 
-def _progress(used, total, color_css):
-    pct = int(round((used/total)*100)) if total else 0
-    st.markdown(f"<div class='progress'><span style='width:{pct}%;background:{color_css}'></span></div>", unsafe_allow_html=True)
-
 # ========================= LOGIN PAGE =========================
 def login_page():
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
@@ -137,11 +133,17 @@ def login_page():
         st.markdown("<div class='login-title'>AccountWorks</div>", unsafe_allow_html=True)
         st.markdown("<div class='login-sub'>เข้าสู่ระบบด้วยบัญชีของคุณ</div>", unsafe_allow_html=True)
 
+        # 🧪 Debug self-test
+        with st.expander("🧪 ตรวจสุขภาพการเชื่อมต่อ (ชั่วคราว)"):
+            if st.button("Run auth.self_test()"):
+                res = auth.self_test()
+                st.json(res)
+
         with st.form("login_form", clear_on_submit=False):
             username = st.text_input("👤 Username", value=st.session_state.user.get("Username","") if st.session_state.user else "")
             password = st.text_input("🔑 Password", type="password")
             c1, c2 = st.columns([1,1])
-            with c1: keep = st.checkbox("จดจำฉัน", value=True)
+            with c1: st.checkbox("จดจำฉัน", value=True)
             with c2: st.markdown("<div style='text-align:right'><a class='muted' href='#'>ลืมรหัสผ่าน?</a></div>", unsafe_allow_html=True)
             submitted = st.form_submit_button("เข้าสู่ระบบ", use_container_width=True)
 
@@ -149,7 +151,9 @@ def login_page():
             try:
                 user = auth.check_login(username, password)
             except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดระหว่างตรวจสอบผู้ใช้: {e}")
+                st.error("เกิดข้อผิดพลาดระหว่างตรวจสอบผู้ใช้ (ดูรายละเอียดด้านล่าง)")
+                st.exception(e)
+                st.code("".join(traceback.format_exc()), language="text")
                 return
 
             # ✅ อนุญาตเฉพาะผู้ใช้ที่ยืนยันจาก Google Sheet เท่านั้น
@@ -208,9 +212,7 @@ def user_management():
         st.error(f"อ่านรายการผู้ใช้ไม่ได้: {e}")
         users_df = _to_df([])
 
-    st.markdown("""
-    <div class='table-head'>ชื่อ | อีเมล/ชื่อผู้ใช้ | แผนก | บทบาท | สถานะ | การจัดการ</div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='table-head'>ชื่อ | อีเมล/ชื่อผู้ใช้ | แผนก | บทบาท | สถานะ | การจัดการ</div>", unsafe_allow_html=True)
     if users_df.empty:
         st.markdown("<div class='card'>ไม่มีข้อมูลผู้ใช้</div>", unsafe_allow_html=True)
     else:
@@ -328,6 +330,7 @@ def leave_form():
         is_admin = _norm_role(st.session_state.user.get("Role")) == "admin"
         is_owner = leave.get("Username") == st.session_state.user.get("Username")
 
+        # คนที่ไม่ใช่ admin เห็นเฉพาะของตัวเอง
         if not is_admin and not is_owner:
             continue
 
