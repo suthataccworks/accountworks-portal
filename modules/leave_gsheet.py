@@ -1,180 +1,145 @@
 # modules/leave_gsheet.py
-import os, datetime as dt
-from typing import Tuple, List, Dict, Any
+import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from typing import List, Dict, Tuple
+import datetime
 
-try:
-    import streamlit as st
-except Exception:
-    class _Dummy:
-        secrets = {}
-        def warning(self, *a, **k): pass
-    st = _Dummy()  # type: ignore
+# ====== CONFIG via st.secrets ======
+# st.secrets["gcp_service_account"] = {...}
+# st.secrets["LEAVES_SHEET_ID"] = "<spreadsheet-id ของตาราง Leaves>"
+# st.secrets["LEAVES_SHEET_NAME"] = "Leaves"  # ถ้าไม่ตั้ง จะใช้ worksheet แรก
 
-DATA_DIR = "./_local_data"
-os.makedirs(DATA_DIR, exist_ok=True)
+LEAVES_HEADER = [
+    "Timestamp", "Username", "LeaveType", "StartDate", "EndDate", "Reason", "Status"
+]
 
-SPREADSHEET_KEY = st.secrets.get("SPREADSHEET_KEY")
-LEAVE_SHEET_NAME = st.secrets.get("LEAVE_REQUESTS_SHEET_NAME", "LeaveRequests")
+def _client():
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
 
-def _get_gspread_client():
+def _ws_leaves():
+    gc = _client()
+    sid = st.secrets["LEAVES_SHEET_ID"]
+    sh = gc.open_by_key(sid)
+    wname = st.secrets.get("LEAVES_SHEET_NAME", None)
+    ws = sh.worksheet(wname) if wname else sh.get_worksheet(0)
+    _ensure_leaves_header(ws)
+    return ws
+
+def _ensure_leaves_header(ws):
+    current = ws.row_values(1)
+    if not current:
+        ws.append_row(LEAVES_HEADER, value_input_option="RAW")
+    else:
+        # เติมหัวที่ขาด
+        need_update = False
+        for i, h in enumerate(LEAVES_HEADER, start=1):
+            if (len(current) < i) or (current[i-1].strip() != h):
+                need_update = True
+                break
+        if need_update:
+            ws.update("1:1", [LEAVES_HEADER])
+
+def _rows_to_dicts(rows: List[List[str]]) -> List[Dict]:
+    if not rows: return []
+    header = rows[0]
+    out = []
+    for r in rows[1:]:
+        d = {header[i]: (r[i] if i < len(r) else "") for i in range(len(header))}
+        out.append(d)
+    return out
+
+def _dicts_with_row_index(ws) -> List[Dict]:
+    rows = ws.get_all_values()
+    dicts = _rows_to_dicts(rows)
+    for idx, d in enumerate(dicts, start=2):
+        d["row_index"] = idx
+    return dicts
+
+def _to_iso(d: datetime.date | str) -> str:
+    if isinstance(d, datetime.date):
+        return d.isoformat()
+    s = str(d).strip()
+    # พยายาม parse กรณีเป็นสตริง
     try:
-        from google.oauth2.service_account import Credentials
-        import gspread
-        info = st.secrets["gcp_service_account"]
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-        return gspread.authorize(creds)
+        return datetime.date.fromisoformat(s).isoformat()
     except Exception:
-        return None
+        return s  # ปล่อยเป็นเดิม ถ้า parse ไม่ได้
 
-GS = _get_gspread_client()
+# ====== PUBLIC APIS ======
+def submit_leave(username: str, leave_type: str, start_date: datetime.date, end_date: datetime.date, reason: str) -> Tuple[bool, str]:
+    if not username:
+        return False, "ไม่พบ Username"
+    if not leave_type:
+        return False, "กรุณาเลือกประเภทการลา"
 
-def _open_ws():
-    if GS and SPREADSHEET_KEY:
-        sh = GS.open_by_key(SPREADSHEET_KEY)
-        try:
-            return sh.worksheet(LEAVE_SHEET_NAME)
-        except Exception:
-            sh.add_worksheet(title=LEAVE_SHEET_NAME, rows=2000, cols=20)
-            return sh.worksheet(LEAVE_SHEET_NAME)
-    return None
+    ws = _ws_leaves()
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    row = [
+        now,
+        username,
+        str(leave_type).strip(),
+        _to_iso(start_date),
+        _to_iso(end_date),
+        str(reason or "").strip(),
+        "Pending"
+    ]
+    ws.append_row(row, value_input_option="RAW")
+    return True, "ส่งคำขอลาสำเร็จ ✅"
 
-def _csv_path() -> str:
-    return os.path.join(DATA_DIR, f"{LEAVE_SHEET_NAME}.csv")
+def get_all_leaves() -> List[Dict]:
+    ws = _ws_leaves()
+    items = _dicts_with_row_index(ws)
+    return items
 
-def _ensure_header(ws):
-    # if empty sheet, create header
-    vals = ws.get_all_values()
-    if not vals:
-        header = ["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"]
-        ws.append_row(header)
+def update_leave_request(row_index: int, leave_type: str, start_date: datetime.date, end_date: datetime.date, reason: str) -> Tuple[bool, str]:
+    if not row_index or row_index < 2:
+        return False, "row_index ไม่ถูกต้อง"
 
-def _read_all() -> List[Dict[str, Any]]:
-    import pandas as pd
-    ws = _open_ws()
-    if ws is not None:
-        vals = ws.get_all_values()
-        if not vals:
-            _ensure_header(ws)
-            vals = ws.get_all_values()
-        header, rows = vals[0], vals[1:]
-        data = []
-        for i, r in enumerate(rows, start=2):  # row index in sheet
-            rec = {header[j]: (r[j] if j < len(r) else "") for j in range(len(header))}
-            rec["row_index"] = i
-            data.append(rec)
-        return data
-    # CSV fallback
-    p = _csv_path()
-    if not os.path.exists(p):
-        import pandas as pd
-        df = pd.DataFrame(columns=["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"])
-        df.to_csv(p, index=False, encoding="utf-8-sig")
-    import pandas as pd
-    df = pd.read_csv(p).fillna("")
-    data = df.to_dict(orient="records")
-    # emulate row_index (header is row 1)
-    for i, rec in enumerate(data, start=2):
-        rec["row_index"] = i
-    return data
+    ws = _ws_leaves()
+    # อ่านแถวเดิมมาก่อน เพื่อคงค่า Timestamp/Username/Status
+    row_vals = ws.row_values(row_index)
+    header = ws.row_values(1)
+    idx_map = {h: i for i, h in enumerate(header)}  # 0-based
 
-def _write_all(records: List[Dict[str, Any]]) -> Tuple[bool, str]:
-    import pandas as pd
-    cols = ["Username","LeaveType","StartDate","EndDate","Reason","Status","CreatedAt","UpdatedAt"]
-    df = pd.DataFrame([{k:v for k,v in r.items() if k in cols} for r in records], columns=cols)
-    ws = _open_ws()
-    if ws is not None:
-        try:
-            ws.clear()
-            ws.update([df.columns.tolist()] + df.fillna("").values.tolist())
-            return True, "อัปเดตคำขอลาสำเร็จ"
-        except Exception as e:
-            return False, f"อัปเดตชีตไม่สำเร็จ: {e}"
-    try:
-        df.to_csv(_csv_path(), index=False, encoding="utf-8-sig")
-        return True, "อัปเดต CSV สำเร็จ"
-    except Exception as e:
-        return False, f"บันทึก CSV ไม่สำเร็จ: {e}"
+    # เตรียมแถวใหม่ (fill ให้ครบความยาว header)
+    new_vals = row_vals[:] + [""] * (len(header) - len(row_vals))
+    # อัปเดตเฉพาะฟิลด์ที่อนุญาต
+    if "LeaveType" in idx_map: new_vals[idx_map["LeaveType"]] = str(leave_type).strip()
+    if "StartDate" in idx_map: new_vals[idx_map["StartDate"]] = _to_iso(start_date)
+    if "EndDate"   in idx_map: new_vals[idx_map["EndDate"]]   = _to_iso(end_date)
+    if "Reason"    in idx_map: new_vals[idx_map["Reason"]]    = str(reason or "").strip()
 
-# ===== Public APIs used by app.py =====
-def submit_leave(username: str, leave_type: str, start_date: dt.date, end_date: dt.date, reason: str) -> Tuple[bool, str]:
-    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ws = _open_ws()
-    if ws is not None:
-        _ensure_header(ws)
-        try:
-            ws.append_row([
-                username, leave_type,
-                start_date.isoformat(), end_date.isoformat(),
-                reason, "Pending", now, now
-            ])
-            return True, "ส่งคำขอลาเรียบร้อย"
-        except Exception as e:
-            return False, f"เพิ่มแถวในชีตไม่สำเร็จ: {e}"
-    # CSV fallback
-    recs = _read_all()
-    recs.append({
-        "Username": username, "LeaveType": leave_type,
-        "StartDate": start_date.isoformat(), "EndDate": end_date.isoformat(),
-        "Reason": reason, "Status": "Pending",
-        "CreatedAt": now, "UpdatedAt": now
-    })
-    return _write_all(recs)
-
-def get_all_leaves() -> List[Dict[str, Any]]:
-    return _read_all()
-
-def update_leave_request(row_index: int, leave_type: str, start_date: dt.date, end_date: dt.date, reason: str) -> Tuple[bool, str]:
-    ws = _open_ws()
-    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if ws is not None:
-        try:
-            # col mapping based on header
-            header = ws.row_values(1)
-            col_map = {name:i+1 for i,name in enumerate(header)}
-            ws.update_cell(row_index, col_map["LeaveType"], leave_type)
-            ws.update_cell(row_index, col_map["StartDate"], start_date.isoformat())
-            ws.update_cell(row_index, col_map["EndDate"], end_date.isoformat())
-            ws.update_cell(row_index, col_map["Reason"], reason)
-            ws.update_cell(row_index, col_map["UpdatedAt"], now)
-            return True, "อัปเดตคำขอเรียบร้อย"
-        except Exception as e:
-            return False, f"อัปเดตชีตไม่สำเร็จ: {e}"
-    # CSV fallback
-    recs = _read_all()
-    for r in recs:
-        if int(r.get("row_index", -1)) == int(row_index):
-            r["LeaveType"] = leave_type
-            r["StartDate"] = start_date.isoformat()
-            r["EndDate"] = end_date.isoformat()
-            r["Reason"] = reason
-            r["UpdatedAt"] = now
-            break
-    return _write_all(recs)
+    # หากสถานะถูกเปลี่ยนไปแล้ว (เช่น Approved) ไม่ควรให้แก้ผ่านเมธอดนี้ แต่ให้ตรวจที่ UI แล้ว (ทำไว้แล้ว)
+    ws.update(f"{row_index}:{row_index}", [new_vals])
+    return True, "อัปเดตคำขอลาสำเร็จ 💾"
 
 def cancel_leave_request(row_index: int) -> Tuple[bool, str]:
-    return update_leave_status(row_index, "Cancelled")
+    if not row_index or row_index < 2:
+        return False, "row_index ไม่ถูกต้อง"
+    ws = _ws_leaves()
+    header = ws.row_values(1)
+    idx_map = {h: i for i, h in enumerate(header)}
+    row_vals = ws.row_values(row_index)
+    new_vals = row_vals[:] + [""] * (len(header) - len(row_vals))
+    if "Status" in idx_map: new_vals[idx_map["Status"]] = "Cancelled"
+    ws.update(f"{row_index}:{row_index}", [new_vals])
+    return True, "ยกเลิกคำขอลาสำเร็จ ❌"
 
-def update_leave_status(row_index: int, status: str) -> Tuple[bool, str]:
-    ws = _open_ws()
-    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if ws is not None:
-        try:
-            header = ws.row_values(1)
-            col_map = {name:i+1 for i,name in enumerate(header)}
-            ws.update_cell(row_index, col_map["Status"], status)
-            ws.update_cell(row_index, col_map["UpdatedAt"], now)
-            return True, "อัปเดตสถานะเรียบร้อย"
-        except Exception as e:
-            return False, f"อัปเดตสถานะไม่สำเร็จ: {e}"
-    # CSV fallback
-    recs = _read_all()
-    for r in recs:
-        if int(r.get("row_index", -1)) == int(row_index):
-            r["Status"] = status
-            r["UpdatedAt"] = now
-            break
-    return _write_all(recs)
+def update_leave_status(row_index: int, new_status: str) -> Tuple[bool, str]:
+    if not row_index or row_index < 2:
+        return False, "row_index ไม่ถูกต้อง"
+    status = str(new_status or "").strip().title()
+    if status not in ("Approved","Rejected","Pending","Cancelled"):
+        return False, "สถานะไม่ถูกต้อง"
+    ws = _ws_leaves()
+    header = ws.row_values(1)
+    idx_map = {h: i for i, h in enumerate(header)}
+    row_vals = ws.row_values(row_index)
+    new_vals = row_vals[:] + [""] * (len(header) - len(row_vals))
+    if "Status" in idx_map: new_vals[idx_map["Status"]] = status
+    ws.update(f"{row_index}:{row_index}", [new_vals])
+    return True, f"อัปเดตสถานะเป็น {status} เรียบร้อย ✅"
