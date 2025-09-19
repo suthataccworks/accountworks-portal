@@ -134,7 +134,7 @@ def login_page():
     cols = st.columns([1,1,1])
     with cols[1]:
         st.markdown("<div class='card login-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='login-title'>ระบบบริษัท</div>", unsafe_allow_html=True)
+        st.markdown("<div class='login-title'>AccountWorks</div>", unsafe_allow_html=True)
         st.markdown("<div class='login-sub'>เข้าสู่ระบบด้วยบัญชีของคุณ</div>", unsafe_allow_html=True)
 
         
@@ -410,5 +410,6 @@ else:
         leave_form()
     else:
         st.session_state.page = "main"; st.rerun()
+
 
 
