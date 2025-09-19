@@ -137,14 +137,7 @@ def login_page():
         st.markdown("<div class='login-title'>ระบบบริษัท</div>", unsafe_allow_html=True)
         st.markdown("<div class='login-sub'>เข้าสู่ระบบด้วยบัญชีของคุณ</div>", unsafe_allow_html=True)
 
-        # Hint/Note (สามารถลบได้เมื่อขึ้นโปรดักชัน)
-        st.markdown("""
-        <div class='hint'>
-          <b>ตัวอย่างการล็อกอิน:</b><br>
-          - Username: <code>admin</code> / Password: <code>1234</code> (ถ้าในชีตคุณตั้งไว้)<br>
-          - หรือใช้รายการจาก Google Sheet จริงของคุณ
-        </div><br>
-        """, unsafe_allow_html=True)
+        
 
         with st.form("login_form", clear_on_submit=False):
             username = st.text_input("👤 Username", value=st.session_state.user.get("Username","") if st.session_state.user else "")
@@ -417,3 +410,4 @@ else:
         leave_form()
     else:
         st.session_state.page = "main"; st.rerun()
+
