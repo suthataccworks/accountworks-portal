@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - AccountWorks{% endblock %}
+
+{% block content %}
+
+<style>
+  /* แต่งโทนโมเดิร์น เบา ๆ */
+  .aw-section-title{font-weight:700;}
+  .aw-card{
+    border:0; border-radius:18px;
+    box-shadow:0 8px 24px rgba(0,0,0,.08);
+  }
+  .aw-metric{
+    display:flex; align-items:center; gap:14px;
+  }
+  .aw-metric .icon{
+    width:44px;height:44px;border-radius:12px;display:flex;
+    align-items:center;justify-content:center;font-size:20px;
+    background:rgba(13,110,253,.1); color:#0d6efd;
+  }
+  .aw-badge{
+    padding:.35rem .6rem; border-radius:999px; font-weight:600; font-size:.8rem;
+  }
+  .aw-badge.approved{background:#e6f6ec;color:#198754;}
+  .aw-badge.pending{background:#fff4e5;color:#b85a00;}
+  .aw-badge.rejected{background:#fde8ea;color:#c12b3a;}
+  .table > :not(caption) > * > * { background-color:transparent; }
+  .btn-soft{
+    border-radius:12px; font-weight:600;
+    box-shadow:0 6px 16px rgba(13,110,253,.12);
+  }
+  .subtle{color:#6c757d}
+</style>
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="aw-section-title mb-1">สวัสดี, {{ request.user.first_name|default:request.user.username }}</h2>
+    <div class="subtle">ภาพรวมการลาของคุณ</div>
+  </div>
+  <div class="d-none d-md-block">
+    <a href="{% url 'leave_request' %}" class="btn btn-primary btn-soft">+ ยื่นคำขอลา</a>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Metrics -->
+  <div class="col-12 col-lg-8">
+    <div class="card aw-card">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h5 class="mb-0">โควต้าวันลาคงเหลือ</h5>
+          <span class="subtle">อัปเดตล่าสุด • {{ now|date:"j M Y, H:i" }}</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <div class="aw-metric p-3 rounded" style="background:linear-gradient(135deg,#eef4ff,#f7f9ff);">
+              <div class="icon"><span>📅</span></div>
+              <div>
+                <div class="subtle">Annual leave</div>
+                <div class="h4 mb-0">{{ balance.annual_leave|default:0 }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="aw-metric p-3 rounded" style="background:linear-gradient(135deg,#e9fbf3,#f7fffb);">
+              <div class="icon" style="background:rgba(25,135,84,.1);color:#198754;">🩺</div>
+              <div>
+                <div class="subtle">Sick leave</div>
+                <div class="h4 mb-0">{{ balance.sick_leave|default:0 }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="aw-metric p-3 rounded" style="background:linear-gradient(135deg,#fff3f7,#fff8fb);">
+              <div class="icon" style="background:rgba(214,51,132,.12);color:#d63384;">🧍</div>
+              <div>
+                <div class="subtle">Personal leave</div>
+                <div class="h4 mb-0">{{ balance.personal_leave|default:0 }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="row mt-4">
+          <div class="col-12">
+            <canvas id="leaveChart" height="86"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick actions & tips -->
+  <div class="col-12 col-lg-4">
+    <div class="card aw-card mb-4">
+      <div class="card-body p-4">
+        <h5 class="mb-3">ทางลัด</h5>
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary btn-soft" href="{% url 'leave_request' %}">+ ยื่นคำขอลา</a>
+          <a class="btn btn-outline-secondary btn-soft" href="{% url 'leave_dashboard' %}">ดูประวัติการลา</a>
+          <a class="btn btn-outline-secondary btn-soft" href="{% url 'menu_holidays' %}">วันหยุดบริษัท</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card aw-card">
+      <div class="card-body p-4">
+        <h6 class="mb-2">เคล็ดลับ</h6>
+        <div class="subtle">ตรวจสอบวันหยุดยาวล่วงหน้าเพื่อวางแผนการลาได้อย่างมีประสิทธิภาพ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Requests table -->
+  <div class="col-12">
+    <div class="card aw-card">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h5 class="mb-0">คำขอลาของคุณ</h5>
+          <a href="{% url 'leave_request' %}" class="btn btn-primary btn-soft btn-sm">+ ยื่นคำขอลา</a>
+        </div>
+
+        {% if leave_requests %}
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead class="subtle">
+                <tr>
+                  <th scope="col">ประเภท</th>
+                  <th scope="col">ช่วงวันที่</th>
+                  <th scope="col" class="text-center">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for r in leave_requests %}
+                <tr>
+                  <td class="fw-semibold">
+                    {% if r.leave_type == 'annual' %}Annual{% elif r.leave_type == 'sick' %}Sick{% else %}Personal{% endif %}
+                  </td>
+                  <td>{{ r.start_date|date:"j M Y" }} → {{ r.end_date|date:"j M Y" }}</td>
+                  <td class="text-center">
+                    {% if r.status == 'approved' %}
+                      <span class="aw-badge approved">approved</span>
+                    {% elif r.status == 'rejected' %}
+                      <span class="aw-badge rejected">rejected</span>
+                    {% else %}
+                      <span class="aw-badge pending">pending</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center py-4 subtle">
+            ยังไม่มีคำขอลา ลองกด “ยื่นคำขอลา” ด้านบนได้เลย 👍
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  (() => {
+    const ctx = document.getElementById('leaveChart');
+    if (!ctx) return;
+
+    const annual = Number("{{ balance.annual_leave|default:0 }}");
+    const sick = Number("{{ balance.sick_leave|default:0 }}");
+    const personal = Number("{{ balance.personal_leave|default:0 }}");
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Annual', 'Sick', 'Personal'],
+        datasets: [{
+          label: 'คงเหลือ (วัน)',
+          data: [annual, sick, personal],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+      }
+    });
+  })();
+</script>
+
+{% endblock %}

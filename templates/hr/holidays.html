@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}วันหยุดบริษัท - AccountWorks{% endblock %}
+{% block content %}
+<h2 class="mb-3">📅 วันหยุดบริษัท</h2>
+
+{% if is_manager_or_admin %}
+  <p><a href="{% url 'holiday_add' %}" class="btn btn-primary">➕ เพิ่มวันหยุด</a></p>
+{% endif %}
+
+<table class="table table-bordered bg-white">
+  <thead class="table-light">
+    <tr>
+      <th>วันที่</th>
+      <th>ชื่อวันหยุด</th>
+      <th>สาธารณะ</th>
+      {% if is_manager_or_admin %}
+        <th>การจัดการ</th>
+      {% endif %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for h in holidays %}
+    <tr>
+      <td>{{ h.date }}</td>
+      <td>{{ h.name }}</td>
+      <td>{{ h.is_public|yesno:"✔,✘" }}</td>
+      {% if is_manager_or_admin %}
+        <td>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'holiday_edit' h.pk %}">แก้ไข</a>
+          <a class="btn btn-sm btn-outline-danger" href="{% url 'holiday_delete' h.pk %}">ลบ</a>
+        </td>
+      {% endif %}
+    </tr>
+  {% empty %}
+    <tr><td colspan="4">ยังไม่มีวันหยุด</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

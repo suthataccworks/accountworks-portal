@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}ลบวันหยุด - AccountWorks{% endblock %}
+{% block content %}
+<h2 class="mb-3 text-danger">⚠ ยืนยันการลบวันหยุด</h2>
+<p>คุณแน่ใจหรือไม่ว่าจะลบ <b>{{ holiday.name }}</b> ({{ holiday.date }}) ?</p>
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-danger">ลบ</button>
+  <a href="{% url 'menu_holidays' %}" class="btn btn-secondary">ยกเลิก</a>
+</form>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Submit Leave Request{% endblock %}
+
+{% block content %}
+{% now "Y-m-d" as today %}
+<style>
+  .aw-card{border:0;border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.08);}
+  .form-section-title{font-weight:800}
+  .hint{color:#6c757d}
+  .days-pill{font-weight:700;border-radius:999px;padding:.45rem .75rem;background:rgba(13,110,253,.1);color:#0d6efd;border:1px solid rgba(13,110,253,.2)}
+  .err{color:#dc3545;font-size:.9rem}
+  .counter{font-size:.9rem;color:#6c757d}
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="form-section-title m-0">Submit Leave Request</h2>
+  <a href="{% url 'leave_dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+</div>
+
+<div class="card aw-card">
+  <div class="card-body p-4">
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert alert-{{ m.tags }} mb-3">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <form method="post" novalidate id="leave-form">
+      {% csrf_token %}
+      <div class="row g-3">
+        <!-- Leave type -->
+        <div class="col-12 col-lg-4">
+          <label class="form-label">Leave type</label>
+          {{ form.leave_type }}
+          {% if form.leave_type.errors %}<div class="err mt-1">{{ form.leave_type.errors|join:", " }}</div>{% endif %}
+        </div>
+
+        <!-- Start date -->
+        <div class="col-12 col-lg-4">
+          <label class="form-label">Start date</label>
+          {{ form.start_date }}
+          {% if form.start_date.errors %}<div class="err mt-1">{{ form.start_date.errors|join:", " }}</div>{% endif %}
+          <div class="hint small mt-1">เลือกวันเริ่มลา (ไม่น้อยกว่าวันนี้)</div>
+        </div>
+
+        <!-- End date -->
+        <div class="col-12 col-lg-4">
+          <label class="form-label d-flex align-items-center justify-content-between">
+            <span>End date</span>
+            <span id="days-badge" class="days-pill d-none">0 day</span>
+          </label>
+          {{ form.end_date }}
+          {% if form.end_date.errors %}<div class="err mt-1">{{ form.end_date.errors|join:", " }}</div>{% endif %}
+          <div class="hint small mt-1">เลือกระยะสุดท้ายของการลา</div>
+        </div>
+
+        <!-- Reason -->
+        <div class="col-12">
+          <label class="form-label d-flex align-items-center justify-content-between">
+            <span>Reason</span>
+            <span class="counter"><span id="reason-count">0</span>/1000</span>
+          </label>
+          {{ form.reason }}
+          {% if form.reason.errors %}<div class="err mt-1">{{ form.reason.errors|join:", " }}</div>{% endif %}
+          <div class="hint small mt-1">ระบบจะเตือนอัตโนมัติหากช่วงวันที่ทับกับวันหยุดบริษัท</div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary px-4" type="submit">Submit</button>
+        <a class="btn btn-light" href="{% url 'leave_dashboard' %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const startEl = document.getElementById('id_start_date');
+  const endEl   = document.getElementById('id_end_date');
+  const badge   = document.getElementById('days-badge');
+  const reason  = document.getElementById('id_reason');
+  const counter = document.getElementById('reason-count');
+
+  // ตั้งค่า min = วันนี้ สำหรับ input date (กันเลือกย้อนหลังจาก client)
+  if (startEl && !startEl.min) startEl.min = '{{ today }}';
+  if (endEl && !endEl.min) endEl.min = '{{ today }}';
+
+  function parseISO(d){ if(!d) return null; const x=new Date(d); return isNaN(x)?null:x; }
+  function daysInclusive(a,b){ return Math.floor((b-a)/(24*60*60*1000))+1; }
+  function updateBadge(){
+    const a=parseISO(startEl?.value), b=parseISO(endEl?.value);
+    if(!a||!b){ badge.classList.add('d-none'); return; }
+    if(b<a){ badge.classList.remove('d-none'); badge.textContent='End date earlier than start!'; return; }
+    const d=daysInclusive(a,b);
+    badge.classList.remove('d-none'); badge.textContent=d+(d>1?' days':' day');
+  }
+  startEl?.addEventListener('change', ()=>{
+    if(endEl && startEl.value && (!endEl.value || endEl.value < startEl.value)){ endEl.value = startEl.value; }
+    endEl?.setAttribute('min', startEl.value || '{{ today }}'); updateBadge();
+  });
+  endEl?.addEventListener('change', updateBadge);
+  document.addEventListener('DOMContentLoaded', updateBadge);
+
+  function updateCount(){ counter.textContent = (reason?.value || '').length; }
+  reason?.addEventListener('input', updateCount);
+  document.addEventListener('DOMContentLoaded', updateCount);
+
+  // กันส่งฟอร์มถ้า end < start (เช็คอีกชั้น)
+  document.getElementById('leave-form')?.addEventListener('submit', (e)=>{
+    const a = parseISO(startEl?.value), b = parseISO(endEl?.value);
+    if(a && b && b < a){
+      e.preventDefault();
+      alert('End date must be the same or after start date.');
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Leave Dashboard{% endblock %}
+
+{% block content %}
+<style>
+  .aw-card{border:0;border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.08);}
+  .aw-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;background:#f8f9fb;border:1px solid #eef2f6;font-weight:600}
+  .aw-chip .icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#eef4ff}
+  .aw-kpi{display:flex;align-items:center;gap:14px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#f7f9ff,#fff);border:1px solid #eef2f6}
+  .aw-kpi .emoji{font-size:26px;line-height:1}
+  .aw-kpi .label{color:#6c757d;font-size:.95rem}
+  .aw-kpi .value{font-weight:800;font-size:1.15rem}
+  .table.aw-table{--bs-table-bg:#ffffff;border-radius:16px;overflow:hidden}
+  .table.aw-table thead th{background:#f6f8fb;border-bottom:1px solid #eef2f6;color:#6b7280;font-weight:700}
+  .table.aw-table tbody td{vertical-align:middle}
+  .badge-status{font-weight:700;border-radius:999px;padding:.45rem .7rem}
+  .status-approved{background:rgba(25,135,84,.12);color:#198754;border:1px solid rgba(25,135,84,.25)}
+  .status-pending{background:rgba(255,193,7,.18);color:#b78103;border:1px solid rgba(255,193,7,.35)}
+  .status-rejected{background:rgba(220,53,69,.12);color:#dc3545;border:1px solid rgba(220,53,69,.28)}
+  .muted{color:#6c757d}
+  .empty{border:2px dashed #e9edf3;border-radius:16px;padding:28px;text-align:center;color:#6c757d}
+  .section-title{font-weight:800}
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="section-title m-0">Leave Balance</h2>
+  <a href="{% url 'leave_request' %}" class="btn btn-primary rounded-3 px-4">+ Submit Leave</a>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="aw-kpi">
+      <div class="emoji">🌴</div>
+      <div>
+        <div class="label">Annual leave</div>
+        <div class="value">{{ balance.annual_leave }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="aw-kpi">
+      <div class="emoji">🤒</div>
+      <div>
+        <div class="label">Sick leave</div>
+        <div class="value">{{ balance.sick_leave }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="aw-kpi">
+      <div class="emoji">🏠</div>
+      <div>
+        <div class="label">Personal leave</div>
+        <div class="value">{{ balance.personal_leave }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Your Leave Requests -->
+<div class="card aw-card">
+  <div class="card-body p-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h4 class="m-0">Your Leave Requests</h4>
+      <span class="aw-chip">
+        <span class="icon">🗂</span>
+        {{ requests|length }} รายการ
+      </span>
+    </div>
+
+    {% if requests %}
+      <div class="table-responsive">
+        <table class="table aw-table align-middle">
+          <thead>
+            <tr>
+              <th style="width:12rem">Type</th>
+              <th style="width:28rem">Dates</th>
+              <th>Reason</th>
+              <th style="width:9rem" class="text-end">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in requests %}
+              <tr>
+                <td class="fw-semibold">
+                  {% if r.leave_type == "annual" %}🌴{% elif r.leave_type == "sick" %}🤒{% else %}🏠{% endif %}
+                  {{ r.get_leave_type_display }}
+                </td>
+                <td class="text-nowrap">
+                  {{ r.start_date|date:"j F Y" }}&nbsp;→&nbsp;{{ r.end_date|date:"j F Y" }}
+                </td>
+                <td class="text-truncate" style="max-width:420px;">
+                  {% if r.reason %}{{ r.reason }}{% else %}<span class="muted">-</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if r.status == "approved" %}
+                    <span class="badge badge-status status-approved">approved</span>
+                  {% elif r.status == "pending" %}
+                    <span class="badge badge-status status-pending">pending</span>
+                  {% else %}
+                    <span class="badge badge-status status-rejected">rejected</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">
+        ยังไม่มีประวัติการลา <a href="{% url 'leave_request' %}">เริ่มยื่นคำขอลาแรกของคุณ</a> เลยสิ!
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

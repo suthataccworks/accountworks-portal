@@ -1,0 +1,24 @@
+# Python/Django
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Django DB (อย่า push ขึ้น Git)
+*.sqlite3
+db.sqlite3
+
+# Env & secrets (ห้าม push)
+.env
+*.env
+.env.*.local
+
+# Static & media build outputs
+staticfiles/
+media/
+
+# OS/Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - ประกาศบริษัท{% endblock %}
+{% block content %}
+<h2 class="mb-3">{{ title }}</h2>
+<form method="post" class="card p-3 bg-white">
+  {% csrf_token %}
+  <div class="mb-3">
+    <label class="form-label">หัวข้อ</label>
+    {{ form.title }}
+  </div>
+  <div class="mb-3">
+    <label class="form-label">เนื้อหา</label>
+    {{ form.content }}
+  </div>
+  <div class="form-check mb-2">
+    {{ form.is_pinned }} <label class="form-check-label">ปักหมุด</label>
+  </div>
+  <div class="form-check mb-3">
+    {{ form.is_active }} <label class="form-check-label">แสดงประกาศ</label>
+  </div>
+  <button class="btn btn-success">💾 บันทึก</button>
+  <a class="btn btn-secondary" href="{% url 'menu_announcements' %}">ยกเลิก</a>
+</form>
+{% endblock %}

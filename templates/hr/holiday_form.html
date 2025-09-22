@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - AccountWorks{% endblock %}
+{% block content %}
+<h2 class="mb-3">{{ title }}</h2>
+<form method="post" class="card p-3 bg-white">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-success">💾 บันทึก</button>
+  <a href="{% url 'menu_holidays' %}" class="btn btn-secondary">ยกเลิก</a>
+</form>
+{% endblock %}

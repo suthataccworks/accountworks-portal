@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Overview Report{% endblock %}
+{% block content %}
+
+{% if placeholder %}
+  <div class="alert alert-info">{{ placeholder }}</div>
+{% else %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">รายงานภาพรวม</h3>
+  {% if is_manager_or_admin %}
+    <a class="btn btn-outline-primary"
+       href="?q={{ q }}&type={{ type }}&status={{ status }}&start={{ start }}&end={{ end }}&cstart={{ cstart }}&cend={{ cend }}&days_min={{ days_min }}&days_max={{ days_max }}&export=csv">
+      ⬇️ Export CSV
+    </a>
+  {% endif %}
+</div>
+
+<!-- ฟิลเตอร์แบบละเอียด -->
+<form method="get" class="row g-3 align-items-end mb-4">
+  <div class="col-12 col-lg-3">
+    <label class="form-label">คำค้น (ชื่อ/นามสกุล/Username)</label>
+    <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="เช่น: สมชาย หรือ somchai">
+  </div>
+
+  <div class="col-6 col-lg-2">
+    <label class="form-label">ประเภทการลา</label>
+    <select name="type" class="form-select">
+      <option value="">ทั้งหมด</option>
+      <option value="annual"  {% if type == "annual" %}selected{% endif %}>Annual</option>
+      <option value="sick"    {% if type == "sick" %}selected{% endif %}>Sick</option>
+      <option value="personal"{% if type == "personal" %}selected{% endif %}>Personal</option>
+    </select>
+  </div>
+
+  <div class="col-6 col-lg-2">
+    <label class="form-label">สถานะ</label>
+    <select name="status" class="form-select">
+      <option value="">ทั้งหมด</option>
+      <option value="pending"  {% if status == "pending" %}selected{% endif %}>pending</option>
+      <option value="approved" {% if status == "approved" %}selected{% endif %}>approved</option>
+      <option value="rejected" {% if status == "rejected" %}selected{% endif %}>rejected</option>
+    </select>
+  </div>
+
+  <div class="col-6 col-lg-2">
+    <label class="form-label">ลา: เริ่มวันที่</label>
+    <input type="date" class="form-control" name="start" value="{{ start }}">
+  </div>
+  <div class="col-6 col-lg-2">
+    <label class="form-label">ลา: ถึงวันที่</label>
+    <input type="date" class="form-control" name="end" value="{{ end }}">
+  </div>
+
+  <div class="col-6 col-lg-2">
+    <label class="form-label">สร้าง: เริ่มวันที่</label>
+    <input type="date" class="form-control" name="cstart" value="{{ cstart }}">
+  </div>
+  <div class="col-6 col-lg-2">
+    <label class="form-label">สร้าง: ถึงวันที่</label>
+    <input type="date" class="form-control" name="cend" value="{{ cend }}">
+  </div>
+
+  <div class="col-6 col-lg-2">
+    <label class="form-label">วันลา (ขั้นต่ำ)</label>
+    <input type="number" min="1" class="form-control" name="days_min" value="{{ days_min }}" placeholder="เช่น 1">
+  </div>
+  <div class="col-6 col-lg-2">
+    <label class="form-label">วันลา (ขั้นสูง)</label>
+    <input type="number" min="1" class="form-control" name="days_max" value="{{ days_max }}" placeholder="เช่น 5">
+  </div>
+
+  <div class="col-12 col-lg-2">
+    <button class="btn btn-primary w-100">กรองข้อมูล</button>
+  </div>
+  <div class="col-12 col-lg-2">
+    <a href="{% url 'menu_overview' %}" class="btn btn-light w-100">ล้างตัวกรอง</a>
+  </div>
+</form>
+
+<!-- สรุปสั้น ๆ -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">By Type</div>
+      <div class="card-body">
+        <ul class="list-group">
+          {% for r in stats_type %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="text-capitalize">{{ r.leave_type }}</span>
+              <span class="badge bg-primary">{{ r.total }}</span>
+            </li>
+          {% empty %}
+            <li class="list-group-item text-muted">No data</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">By Status</div>
+      <div class="card-body">
+        <ul class="list-group">
+          {% for r in stats_status %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ r.status }}
+              <span class="badge bg-secondary">{{ r.total }}</span>
+            </li>
+          {% empty %}
+            <li class="list-group-item text-muted">No data</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ตารางรายละเอียดการลา -->
+<div class="card shadow-sm">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <strong>รายละเอียดการลา</strong>
+    {% if is_manager_or_admin %}
+      <a class="btn btn-sm btn-outline-primary"
+         href="?q={{ q }}&type={{ type }}&status={{ status }}&start={{ start }}&end={{ end }}&cstart={{ cstart }}&cend={{ cend }}&days_min={{ days_min }}&days_max={{ days_max }}&export=csv">
+        ⬇️ Export CSV
+      </a>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white">
+        <thead class="table-light">
+          <tr>
+            <th>ชื่อ</th>
+            <th>นามสกุล</th>
+            <th>Username</th>
+            <th>ประเภท</th>
+            <th>วันที่ลา</th>
+            <th>จำนวนวัน</th>
+            <th>รายละเอียด</th>
+            <th>สถานะ</th>
+            <th>สร้างเมื่อ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.first_name }}</td>
+            <td>{{ r.last_name }}</td>
+            <td>{{ r.username }}</td>
+            <td class="text-capitalize">{{ r.leave_type }}</td>
+            <td>{{ r.start_date }} → {{ r.end_date }}</td>
+            <td>{{ r.days }}</td>
+            <td>{{ r.reason|default:"-" }}</td>
+            <td>
+              {% if r.status == 'approved' %}<span class="badge bg-success">approved</span>
+              {% elif r.status == 'rejected' %}<span class="badge bg-danger">rejected</span>
+              {% else %}<span class="badge bg-secondary">pending</span>{% endif %}
+            </td>
+            <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-center text-muted">ไม่มีข้อมูล</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
