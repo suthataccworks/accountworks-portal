@@ -27,35 +27,24 @@
   <a href="{% url 'leave_request' %}" class="btn btn-primary rounded-3 px-4">+ Submit Leave</a>
 </div>
 
-<!-- KPIs -->
+<!-- KPIs (dynamic from balance_cards) -->
 <div class="row g-3 mb-4">
-  <div class="col-12 col-md-4">
-    <div class="aw-kpi">
-      <div class="emoji">🌴</div>
-      <div>
-        <div class="label">Annual leave</div>
-        <div class="value">{{ balance.annual_leave }}</div>
+  {% for c in balance_cards %}
+    <div class="col-12 col-md-4 col-lg-3">
+      <div class="aw-kpi">
+        <div class="emoji">{{ c.emoji }}</div>
+        <div>
+          <div class="label">{{ c.label }}</div>
+          <div class="value">{{ c.value }} วัน</div>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-12 col-md-4">
-    <div class="aw-kpi">
-      <div class="emoji">🤒</div>
-      <div>
-        <div class="label">Sick leave</div>
-        <div class="value">{{ balance.sick_leave }}</div>
-      </div>
+  {% endfor %}
+  {% if balance_cards|length == 0 %}
+    <div class="col-12">
+      <div class="empty">ยังไม่มีข้อมูลโควตาวันลาของคุณ</div>
     </div>
-  </div>
-  <div class="col-12 col-md-4">
-    <div class="aw-kpi">
-      <div class="emoji">🏠</div>
-      <div>
-        <div class="label">Personal leave</div>
-        <div class="value">{{ balance.personal_leave }}</div>
-      </div>
-    </div>
-  </div>
+  {% endif %}
 </div>
 
 <!-- Your Leave Requests -->
@@ -84,7 +73,21 @@
             {% for r in requests %}
               <tr>
                 <td class="fw-semibold">
-                  {% if r.leave_type == "annual" %}🌴{% elif r.leave_type == "sick" %}🤒{% else %}🏠{% endif %}
+                  {% if r.leave_type == "annual" %}
+                    🌴
+                  {% elif r.leave_type == "sick" %}
+                    🤒
+                  {% elif r.leave_type == "personal" %}
+                    🏠
+                  {% elif r.leave_type == "relax" %}
+                    😌
+                  {% elif r.leave_type == "unpaid" %}
+                    💸
+                  {% elif r.leave_type == "maternity" %}
+                    👶
+                  {% else %}
+                    🗂
+                  {% endif %}
                   {{ r.get_leave_type_display }}
                 </td>
                 <td class="text-nowrap">

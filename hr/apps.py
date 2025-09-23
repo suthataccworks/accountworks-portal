@@ -1,4 +1,3 @@
-# hr/apps.py
 from django.apps import AppConfig
 
 class HrConfig(AppConfig):
@@ -6,5 +5,4 @@ class HrConfig(AppConfig):
     name = "hr"
 
     def ready(self):
-        # โหลด signals เสมอเมื่อแอปพร้อม
-        from . import signals  # noqa: F401
+        from . import signals  # noqa

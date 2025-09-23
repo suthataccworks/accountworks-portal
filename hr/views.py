@@ -144,20 +144,49 @@ def app_dashboard(request):
 # =========================
 # Leave
 # =========================
+
+# KPI Mapping: (key, emoji, label, balance_field)
+LEAVE_KPIS = [
+    ("annual",    "🌴", "Annual leave",   "annual_leave"),
+    ("sick",      "🤒", "Sick leave",     "sick_leave"),
+    ("personal",  "🏠", "Personal leave", "personal_leave"),
+    ("relax",     "😌", "Relax leave",    "relax_leave"),
+    ("maternity", "👶", "Maternity leave","maternity_leave"),
+    ("other",     "🗂", "Other leave",    "other_leave"),
+    # หมายเหตุ: unpaid ปกติไม่ตัดโควตา จึงไม่นำมาโชว์ใน KPI
+]
+
 @login_required
 def leave_dashboard(request):
     """แดชบอร์ดส่วนตัวของการลา"""
     employee = get_object_or_404(Employee, user=request.user)
-    # ถ้ายังไม่มี balance ให้สร้างทันที
+    # ถ้ายังไม่มี balance ให้สร้างทันที (ค่า default ตามนโยบายคุณ)
     balance, _ = LeaveBalance.objects.get_or_create(
         employee=employee,
-        defaults={"annual_leave": 10, "sick_leave": 30, "personal_leave": 3},
+        defaults={
+            "annual_leave": 10,
+            "sick_leave": 30,
+            "personal_leave": 3,
+            # เพิ่มเติมสำหรับประเภทใหม่ (ถ้าต้องการให้มีค่าตั้งต้น)
+            "relax_leave": 0,
+            "maternity_leave": 0,
+            "other_leave": 0,
+        },
     )
-    requests = employee.requests.all()
+
+    # เตรียมการ์ด KPI แบบ dynamic
+    balance_cards = []
+    for key, emoji, label, field in LEAVE_KPIS:
+        value = getattr(balance, field, 0) if balance else 0
+        if value is None:
+            value = 0
+        balance_cards.append({"key": key, "emoji": emoji, "label": label, "value": value})
+
+    requests = employee.requests.all().order_by("-start_date", "-created_at")
     return render_ctx(
         request,
         "hr/leave_dashboard.html",
-        {"balance": balance, "requests": requests},
+        {"balance_cards": balance_cards, "requests": requests},
     )
 
 
@@ -332,8 +361,9 @@ def menu_overview(request):
             | Q(employee__user__username__icontains=q)
         )
 
-    # ประเภทการลา
-    if type_filter in {"annual", "sick", "personal"}:
+    # ประเภทการลา (เพิ่มประเภทใหม่ให้กรองได้)
+    VALID_TYPES = {"annual", "sick", "personal", "relax", "unpaid", "maternity", "other"}
+    if type_filter in VALID_TYPES:
         qs = qs.filter(leave_type=type_filter)
 
     # สถานะ

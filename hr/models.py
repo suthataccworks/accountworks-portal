@@ -1,4 +1,3 @@
-# hr/models.py
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -23,7 +22,6 @@ class Employee(models.Model):
 
     class Meta:
         ordering = ["user__username"]
-        # ถ้าต้องการบังคับให้ทีมมีหัวหน้าได้ทีมละ 1 คน ให้ปลดคอมเมนต์ constraint นี้
         # constraints = [
         #     models.UniqueConstraint(
         #         fields=["team"],
@@ -43,6 +41,10 @@ class LeaveBalance(models.Model):
     annual_leave = models.PositiveIntegerField(default=10)
     sick_leave = models.PositiveIntegerField(default=30)
     personal_leave = models.PositiveIntegerField(default=5)
+    # ✅ เพิ่มเติมสำหรับประเภทใหม่ (กำหนดนโยบายได้ตามใจ)
+    relax_leave = models.PositiveIntegerField(default=0)
+    maternity_leave = models.PositiveIntegerField(default=0)
+    other_leave = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"Balance({self.employee.user.username})"
@@ -50,9 +52,13 @@ class LeaveBalance(models.Model):
 
 class LeaveRequest(models.Model):
     TYPE_CHOICES = [
-        ("annual", "Annual"),
-        ("sick", "Sick"),
-        ("personal", "Personal"),
+        ("annual", "ลาพักร้อน"),
+        ("sick", "ลาป่วย"),
+        ("personal", "ลากิจ"),
+        ("relax", "ลาพักผ่อนพิเศษ"),
+        ("unpaid", "ลาไม่รับค่าตอบแทน"),
+        ("maternity", "ลาคลอด"),
+        ("other", "ลาอื่นๆ"),
     ]
     STATUS_CHOICES = [
         ("pending", "pending"),
@@ -72,7 +78,7 @@ class LeaveRequest(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # กันตัดโควต้าซ้ำ (ใช้ใน signals)
+    # กันตัดโควต้าซ้ำ (ใช้ร่วมกับ signals)
     deducted = models.BooleanField(default=False)
 
     class Meta:
@@ -82,7 +88,7 @@ class LeaveRequest(models.Model):
         return f"{self.employee.user.username} {self.leave_type} {self.status}"
 
 
-# ---- เพิ่มกลับมา: วันหยุดบริษัท ----
+# ---- วันหยุดบริษัท ----
 class Holiday(models.Model):
     name = models.CharField(max_length=200)
     date = models.DateField(db_index=True)
@@ -96,7 +102,7 @@ class Holiday(models.Model):
         return f"{self.name} ({self.date})"
 
 
-# ---- เพิ่มกลับมา: ประกาศบริษัท ----
+# ---- ประกาศบริษัท ----
 class Announcement(models.Model):
     title = models.CharField(max_length=255)
     content = models.TextField()
