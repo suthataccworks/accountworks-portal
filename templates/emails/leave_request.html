@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>คำขอลาใหม่</title>
+  <!-- ใช้สไตล์แบบ inline-friendly เพื่อรองรับ Gmail/Outlook -->
+</head>
+<body style="margin:0;padding:0;background:#f6f7f9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <!-- card -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+               style="max-width:640px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e6e8ec;">
+          <!-- header -->
+          <tr>
+            <td style="background:#111827;color:#ffffff;padding:18px 22px;font-family:Segoe UI,Arial,Helvetica,sans-serif;font-size:18px;font-weight:600;">
+              HR AccountWorks • คำขอลาใหม่
+            </td>
+          </tr>
+
+          <!-- body -->
+          <tr>
+            <td style="padding:22px;font-family:Segoe UI,Arial,Helvetica,sans-serif;color:#111827;">
+              <h2 style="margin:0 0 12px 0;font-size:20px;font-weight:700;">
+                {{ leave.employee.user.get_full_name|default:leave.employee.user.username }}
+              </h2>
+
+              <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:14px;">
+                <tr>
+                  <td style="padding:8px 0;color:#6b7280;width:120px;">ชนิดลา</td>
+                  <td style="padding:8px 0;color:#111827;">{{ leave.get_leave_type_display|default:leave.leave_type }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;color:#6b7280;">ช่วง</td>
+                  <td style="padding:8px 0;color:#111827;">
+                    {{ leave.start_date }} – {{ leave.end_date }}
+                    {% with td=leave.total_days %}{% if td %}<span style="color:#6b7280;">({{ td }} วัน)</span>{% endif %}{% endwith %}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;color:#6b7280;vertical-align:top;">เหตุผล</td>
+                  <td style="padding:8px 0;color:#111827;">{{ leave.reason|default:"-" }}</td>
+                </tr>
+              </table>
+
+              <!-- actions -->
+              <div style="margin-top:18px;">
+                <!-- Bulletproof buttons -->
+                <a href="{{ approve_url }}"
+                   style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;
+                          padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;">✅ อนุมัติทันที</a>
+                <a href="{{ reject_url }}"
+                   style="display:inline-block;background:#ef4444;color:#ffffff;text-decoration:none;
+                          padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;margin-left:8px;">❌ ปฏิเสธทันที</a>
+              </div>
+
+              <!-- note -->
+              <p style="margin:18px 0 0 0;color:#6b7280;font-size:12px;line-height:1.5;">
+                ลิงก์มีอายุ 3 วัน หากหมดอายุ โปรดเข้าระบบ:
+                <a href="{{ site_url }}" style="color:#3b82f6;text-decoration:underline;">{{ site_url }}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- footer -->
+          <tr>
+            <td style="padding:12px 22px;background:#f9fafb;color:#6b7280;font-size:12px;font-family:Segoe UI,Arial,Helvetica,sans-serif;">
+              © {{ now|date:"Y" }} AccountWorks • อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ
+            </td>
+          </tr>
+        </table>
+        <!-- /card -->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -7,6 +7,11 @@ from django.dispatch import receiver
 
 from .models import Employee, LeaveBalance, LeaveRequest
 
+# 🔔 เพิ่ม: ฟังก์ชันส่งอีเมล
+from .emails import (
+    send_leave_request_to_approvers,
+    send_leave_status_to_requester,
+)
 
 # ========= Helper =========
 def _calc_days(start, end) -> int:
@@ -68,6 +73,7 @@ def handle_leave_deduction_on_update(sender, instance: LeaveRequest, **kwargs):
     - ถ้าใบเดิมเคยถูกหัก (approved + deducted=True) -> คืนของเดิมก่อน
     - ถ้าค่าใหม่คือ approved และยังไม่ deducted -> หักใหม่
     - รองรับกรณีแก้ 'สถานะ', 'ช่วงวัน', หรือ 'ประเภทการลา'
+    - เก็บค่า _old_status ไว้เพื่อใช้แจ้งอีเมลหลังบันทึก (post_save)
     หมายเหตุ: เราใช้ pre_save เพื่อมองเห็นค่าเดิม (old) ได้สะดวก
     """
     # เรคคอร์ดใหม่ (ยังไม่มี pk) ให้ไปพิจารณาใน post_save แทน
@@ -75,9 +81,8 @@ def handle_leave_deduction_on_update(sender, instance: LeaveRequest, **kwargs):
         return
 
     old = LeaveRequest.objects.get(pk=instance.pk)
-
-    # ไม่มีการเปลี่ยนแปลงที่มีผลกับโควตาและสถานะไม่ได้แตะ -> ข้ามได้ (optional optimization)
-    # เราจะจัดการแบบปลอดภัยโดยคำนวณเสมอ
+    # ⭐ เก็บสถานะเดิมไว้ ใช้ใน post_save เพื่อตรวจจับการเปลี่ยนสถานะ
+    instance._old_status = old.status
 
     with transaction.atomic():
         bal = _get_or_create_balance_locked(instance.employee)
@@ -108,27 +113,44 @@ def handle_leave_deduction_on_create(sender, instance: LeaveRequest, created, **
     """
     ครอบกรณี 'สร้างใบคำขอใหม่' ที่มีสถานะ approved ตั้งแต่แรก
     (ปกติ flow คุณจะสร้างเป็น pending จึงไม่เข้าเงื่อนไขนี้บ่อย)
+    และเพิ่ม: ส่งอีเมลแจ้ง Approver เมื่อมีคำขอใหม่เสมอ
     """
-    if not created:
+    if created:
+        # หักโควตาทันทีถ้าสร้างมาเป็น approved
+        if instance.status == "approved" and not instance.deducted:
+            field = BALANCE_FIELD_MAP.get(instance.leave_type)
+            if field is not None:  # unpaid ไม่หัก
+                with transaction.atomic():
+                    bal = _get_or_create_balance_locked(instance.employee)
+                    days = _calc_days(instance.start_date, instance.end_date)
+                    _apply_deduct(bal, days, field)
+                    bal.save()
+                    instance.deducted = True
+                    instance.save(update_fields=["deducted"])
+
+        # 🔔 ส่งเมลแจ้ง Approver เมื่อมีคำขอใหม่
+        try:
+            send_leave_request_to_approvers(instance)
+        except Exception:
+            # อย่าทำให้การบันทึกล้มเหลวเพราะอีเมล—จับไว้เฉยๆ
+            pass
+
+
+# ========= LeaveRequest: แจ้งผู้ยื่นเมื่อ "สถานะเปลี่ยน" =========
+@receiver(post_save, sender=LeaveRequest)
+def notify_requester_on_status_change(sender, instance: LeaveRequest, created, **kwargs):
+    """
+    ถ้าไม่ใช่เรคคอร์ดใหม่ และสถานะเปลี่ยนจากเดิม -> ส่งเมลแจ้งผู้ยื่น
+    ใช้ค่า _old_status ที่เซ็ตไว้ใน pre_save
+    """
+    if created:
         return
-
-    if instance.status != "approved" or instance.deducted:
-        return
-
-    field = BALANCE_FIELD_MAP.get(instance.leave_type)
-    if field is None:
-        # unpaid หรือประเภทที่ไม่หัก
-        return
-
-    with transaction.atomic():
-        bal = _get_or_create_balance_locked(instance.employee)
-        days = _calc_days(instance.start_date, instance.end_date)
-        _apply_deduct(bal, days, field)
-        bal.save()
-
-        # อัปเดตธง deducted เพื่อกันการหักซ้ำ
-        instance.deducted = True
-        instance.save(update_fields=["deducted"])
+    old_status = getattr(instance, "_old_status", None)
+    if old_status is not None and old_status != instance.status:
+        try:
+            send_leave_status_to_requester(instance)
+        except Exception:
+            pass
 
 
 # ========= LeaveRequest: ลบใบคำขอ (คืนโควตาถ้าเคยหัก) =========

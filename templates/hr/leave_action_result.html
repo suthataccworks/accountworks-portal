@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>สถานะการดำเนินการคำขอลา</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:Segoe UI,Arial,Helvetica,sans-serif;background:#f6f7f9;margin:0;color:#111827}
+    .wrap{max-width:720px;margin:36px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    .head{padding:18px 20px;border-bottom:1px solid #e5e7eb}
+    .title{margin:0;font-size:20px;font-weight:700}
+    .badge{display:inline-block;margin-left:8px;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px}
+    .approved{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .rejected{background:#fef2f2;color:#7f1d1d;border:1px solid #fecaca}
+    .pending{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+    .body{padding:20px}
+    .row{display:grid;grid-template-columns:160px 1fr;gap:8px 12px;margin-bottom:8px}
+    .label{color:#6b7280}
+    .cta{margin-top:16px}
+    .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:1px solid #e5e7eb;text-decoration:none;color:#111827;background:#fff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <h1 class="title">
+          ผลการดำเนินการคำขอลา
+          {% with s=leave.status %}
+          <span class="badge {% if s == 'approved' %}approved{% elif s == 'rejected' %}rejected{% else %}pending{% endif %}">
+            {{ leave.get_status_display|default:leave.status }}
+          </span>
+          {% endwith %}
+        </h1>
+      </div>
+      <div class="body">
+        <div class="row">
+          <div class="label">ผู้ยื่น</div>
+          <div>{{ leave.employee.user.get_full_name|default:leave.employee.user.username }}</div>
+        </div>
+        <div class="row">
+          <div class="label">ชนิดลา</div>
+          <div>{{ leave.get_leave_type_display|default:leave.leave_type }}</div>
+        </div>
+        <div class="row">
+          <div class="label">ช่วงวัน</div>
+          <div>{{ leave.start_date }} – {{ leave.end_date }}</div>
+        </div>
+
+        <p style="color:#6b7280;margin-top:12px;">
+          หากต้องการดูรายละเอียดเต็ม สามารถเข้าสู่ระบบแล้วเปิดหน้ารายการใบลานี้ได้
+        </p>
+        <div class="cta">
+          <a class="btn" href="/accounts/login/?next=/leave/{{ leave.pk }}/">เข้าสู่ระบบเพื่อดูรายละเอียด</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

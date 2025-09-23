@@ -7,12 +7,22 @@ from typing import Optional
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
-from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed
+from django.http import (
+    HttpResponse,
+    HttpResponseForbidden,
+    HttpResponseNotAllowed,
+    HttpResponseBadRequest,
+)
+    # noqa: E122
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.timezone import make_naive
 from django.core.paginator import Paginator
+from django.views.decorators.http import require_GET
+from django.core.signing import SignatureExpired, BadSignature
+from django.conf import settings
 
 from .forms import LeaveRequestForm, HolidayForm, AnnouncementForm
 from .models import (
@@ -24,11 +34,12 @@ from .models import (
     Announcement,
 )
 
+User = get_user_model()
+
 # =========================
 # Utils
 # =========================
 def _parse_date(s: Optional[str]):
-    """แปลง YYYY-MM-DD -> date | None"""
     if not s:
         return None
     try:
@@ -38,7 +49,6 @@ def _parse_date(s: Optional[str]):
 
 
 def _parse_int(s: Optional[str]):
-    """แปลง str -> int | None"""
     if not s:
         return None
     try:
@@ -48,14 +58,12 @@ def _parse_int(s: Optional[str]):
 
 
 def _is_org_manager(user) -> bool:
-    """สิทธิ์ผู้จัดการ/แอดมินทั้งองค์กร"""
     return user.is_authenticated and (
         user.is_staff or user.groups.filter(name__iexact="manager").exists()
     )
 
 
 def _is_team_lead(user) -> bool:
-    """เป็นหัวหน้าทีม (กำหนดที่ Employee.is_team_lead)"""
     try:
         return Employee.objects.get(user=user).is_team_lead
     except Employee.DoesNotExist:
@@ -63,17 +71,10 @@ def _is_team_lead(user) -> bool:
 
 
 def _is_manager_or_admin(user) -> bool:
-    """คงตัวเดิมไว้เพื่อรองรับเทมเพลตเก่า"""
     return _is_org_manager(user)
 
 
 def _visible_requests_for(user, base_qs):
-    """
-    คืน queryset ของ LeaveRequest ที่ user มีสิทธิ์เห็น/อนุมัติ
-    - org manager: เห็นทั้งหมด
-    - team lead: เห็นเฉพาะคำขอของสมาชิกในทีมตนเอง (ไม่รวมคำขอของตัวเอง)
-    - อื่น ๆ: ไม่เห็น (none)
-    """
     if _is_org_manager(user):
         return base_qs
 
@@ -90,7 +91,6 @@ def _visible_requests_for(user, base_qs):
 
 
 def render_ctx(request, template_name, ctx=None):
-    """context กลาง: ใส่ธงสิทธิ์ให้ทุกหน้า"""
     base = {"is_manager_or_admin": _is_manager_or_admin(request.user)}
     if ctx:
         base.update(ctx)
@@ -102,28 +102,23 @@ def render_ctx(request, template_name, ctx=None):
 # =========================
 @login_required
 def app_dashboard(request):
-    """โฮมแดชบอร์ด"""
     today = timezone.localdate()
 
-    # วันหยุดกำลังมาถึง
     qs_h = Holiday.objects.filter(date__gte=today).order_by("date")[:6]
     upcoming_holidays = [
         {"name": h.name, "date": h.date, "days_left": (h.date - today).days}
         for h in qs_h
     ]
 
-    # 3 ประกาศล่าสุด (ปักหมุดมาก่อน)
     latest_announcements = (
         Announcement.objects.filter(is_active=True)
         .order_by("-is_pinned", "-published_at", "-id")[:3]
     )
 
-    # ป้ายตัวเลขคำขอค้างอนุมัติ (เฉพาะ manager/admin)
     pending_count = 0
     if _is_org_manager(request.user):
         pending_count = LeaveRequest.objects.filter(status="pending").count()
     elif _is_team_lead(request.user):
-        # หัวหน้าทีมเห็นเฉพาะทีมตัวเอง
         me = Employee.objects.filter(user=request.user).select_related("team").first()
         if me and me.team_id:
             pending_count = LeaveRequest.objects.filter(
@@ -144,8 +139,6 @@ def app_dashboard(request):
 # =========================
 # Leave
 # =========================
-
-# KPI Mapping: (key, emoji, label, balance_field)
 LEAVE_KPIS = [
     ("annual",    "🌴", "Annual leave",   "annual_leave"),
     ("sick",      "🤒", "Sick leave",     "sick_leave"),
@@ -153,46 +146,43 @@ LEAVE_KPIS = [
     ("relax",     "😌", "Relax leave",    "relax_leave"),
     ("maternity", "👶", "Maternity leave","maternity_leave"),
     ("other",     "🗂", "Other leave",    "other_leave"),
-    # หมายเหตุ: unpaid ปกติไม่ตัดโควตา จึงไม่นำมาโชว์ใน KPI
 ]
+
 
 @login_required
 def leave_dashboard(request):
-    """แดชบอร์ดส่วนตัวของการลา"""
-    employee = get_object_or_404(Employee, user=request.user)
-    # ถ้ายังไม่มี balance ให้สร้างทันที (ค่า default ตามนโยบายคุณ)
+    employee, _ = Employee.objects.get_or_create(
+        user=request.user,
+        defaults={"position": "", "team": None, "is_team_lead": False},
+    )
+
     balance, _ = LeaveBalance.objects.get_or_create(
         employee=employee,
         defaults={
             "annual_leave": 10,
             "sick_leave": 30,
             "personal_leave": 3,
-            # เพิ่มเติมสำหรับประเภทใหม่ (ถ้าต้องการให้มีค่าตั้งต้น)
             "relax_leave": 0,
             "maternity_leave": 0,
             "other_leave": 0,
         },
     )
 
-    # เตรียมการ์ด KPI แบบ dynamic
     balance_cards = []
     for key, emoji, label, field in LEAVE_KPIS:
-        value = getattr(balance, field, 0) if balance else 0
-        if value is None:
-            value = 0
+        value = getattr(balance, field, 0) or 0
         balance_cards.append({"key": key, "emoji": emoji, "label": label, "value": value})
 
-    requests = employee.requests.all().order_by("-start_date", "-created_at")
+    requests_qs = employee.requests.all().order_by("-start_date", "-created_at")
     return render_ctx(
         request,
         "hr/leave_dashboard.html",
-        {"balance_cards": balance_cards, "requests": requests},
+        {"balance_cards": balance_cards, "requests": requests_qs},
     )
 
 
 @login_required
 def leave_request(request):
-    """สร้างคำขอลา (สถานะเริ่มต้น: pending)"""
     employee = get_object_or_404(Employee, user=request.user)
 
     if request.method == "POST":
@@ -201,7 +191,6 @@ def leave_request(request):
             lr: LeaveRequest = form.save(commit=False)
             lr.employee = employee
             lr.status = "pending"
-            # แจ้งเตือนถ้ามีวันหยุดทับช่วง
             if Holiday.objects.filter(date__range=[lr.start_date, lr.end_date]).exists():
                 messages.warning(
                     request,
@@ -218,20 +207,13 @@ def leave_request(request):
 
 
 # =========================
-# Manage Requests (team lead/org manager only)
+# Manage Requests
 # =========================
 @login_required
 def manage_requests(request):
-    """
-    จัดการคำขอลา:
-    - org manager เห็นทั้งหมด
-    - team lead เห็นเฉพาะทีมตัวเอง (ยกเว้นคำขอของตัวเอง)
-    - ค่าเริ่มต้นแสดงเฉพาะ pending
-    """
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
 
-    # ---- Action ----
     if request.method == "POST":
         pk = request.POST.get("pk")
         action = request.POST.get("action")
@@ -242,7 +224,6 @@ def manage_requests(request):
             pk=pk,
         )
 
-        # ตรวจสิทธิ์ในระดับรายการ
         allowed_qs = _visible_requests_for(request.user, LeaveRequest.objects.all())
         if not allowed_qs.filter(pk=lr.pk).exists():
             messages.error(request, "คุณไม่มีสิทธิ์อนุมัติคำขอนี้")
@@ -254,17 +235,16 @@ def manage_requests(request):
 
         if action == "approve":
             lr.status = "approved"
-            lr.save()  # signals จะตัดโควต้า
+            lr.save()
             messages.success(request, "อนุมัติแล้ว")
         elif action == "reject":
             lr.status = "rejected"
-            lr.save()  # signals จะคืนโควต้า หากเคยตัด
+            lr.save()
             messages.info(request, "ปฏิเสธแล้ว")
         else:
             messages.error(request, "ไม่รู้จัก action")
         return redirect(request.META.get("HTTP_REFERER") or "manage_requests")
 
-    # ---- List / Filter ----
     qs = LeaveRequest.objects.select_related(
         "employee", "employee__user", "employee__team"
     )
@@ -287,10 +267,8 @@ def manage_requests(request):
     )
 
 
-# (ถ้าหน้าเก่ามีปุ่มยิง URL เฉพาะ pk ให้คงฟังก์ชันนี้ไว้)
 @login_required
 def update_request_status(request, pk: int):
-    """อนุมัติ/ปฏิเสธคำขอแบบเจาะจง pk (ยังคงไว้เพื่อรองรับลิงก์เก่า)"""
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
     if request.method != "POST":
@@ -317,21 +295,13 @@ def update_request_status(request, pk: int):
 
 
 # =========================
-# Overview Report (filters + CSV)
+# Overview + CSV
 # =========================
 @login_required
 def menu_overview(request):
-    """
-    รายงานภาพรวม + รายละเอียดการลา
-    - ตัวกรองละเอียด: คำค้น, ประเภท, สถานะ, ช่วงวันที่ลา, ช่วงวันที่สร้าง, ช่วงจำนวนวันลา
-    - Export CSV ตามตัวกรอง
-    - ถ้าเป็นหัวหน้าทีม ให้เห็นเฉพาะทีมตนเอง (ตามหลักเดียวกับหน้าจัดการ)
-    """
-    # สิทธิ์: org manager เห็นทั้งหมด, team lead เห็นเฉพาะทีมตนเอง
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
 
-    # -------- รับพารามิเตอร์กรอง --------
     q = (request.GET.get("q") or "").strip()
     type_filter = (request.GET.get("type") or "").strip().lower()
     status_filter = (request.GET.get("status") or "").strip().lower()
@@ -349,11 +319,9 @@ def menu_overview(request):
     cstart_dt = _parse_date(cstart_str)
     cend_dt = _parse_date(cend_str)
 
-    # -------- Base Queryset --------
     qs = LeaveRequest.objects.select_related("employee__user", "employee__team").all()
     qs = _visible_requests_for(request.user, qs)
 
-    # คำค้นชื่อ/ยูสเซอร์
     if q:
         qs = qs.filter(
             Q(employee__user__first_name__icontains=q)
@@ -361,28 +329,23 @@ def menu_overview(request):
             | Q(employee__user__username__icontains=q)
         )
 
-    # ประเภทการลา (เพิ่มประเภทใหม่ให้กรองได้)
     VALID_TYPES = {"annual", "sick", "personal", "relax", "unpaid", "maternity", "other"}
     if type_filter in VALID_TYPES:
         qs = qs.filter(leave_type=type_filter)
 
-    # สถานะ
     if status_filter in {"pending", "approved", "rejected"}:
         qs = qs.filter(status=status_filter)
 
-    # ช่วงวันที่ลา (ทับช่วงถือว่าเข้าเงื่อนไข)
     if start_dt:
         qs = qs.filter(end_date__gte=start_dt)
     if end_dt:
         qs = qs.filter(start_date__lte=end_dt)
 
-    # ช่วงวันที่สร้าง
     if cstart_dt:
         qs = qs.filter(created_at__date__gte=cstart_dt)
     if cend_dt:
         qs = qs.filter(created_at__date__lte=cend_dt)
 
-    # เตรียม rows เพื่อกรองต่อด้วยจำนวนวัน
     rows = []
     for r in qs:
         u = r.employee.user
@@ -402,17 +365,14 @@ def menu_overview(request):
             }
         )
 
-    # กรองตามจำนวนวันลา
     if days_min is not None:
         rows = [x for x in rows if x["days"] >= days_min]
     if days_max is not None:
         rows = [x for x in rows if x["days"] <= days_max]
 
-    # สถิติสรุป
     stats_type = qs.values("leave_type").annotate(total=Count("id")).order_by("leave_type")
     stats_status = qs.values("status").annotate(total=Count("id")).order_by("status")
 
-    # Export CSV
     if request.GET.get("export") == "csv":
         resp = HttpResponse(content_type="text/csv; charset=UTF-8")
         resp["Content-Disposition"] = 'attachment; filename="leave_detail_report.csv"'
@@ -448,7 +408,6 @@ def menu_overview(request):
             )
         return resp
 
-    # Render
     return render_ctx(
         request,
         "hr/overview.html",
@@ -456,7 +415,6 @@ def menu_overview(request):
             "stats_type": stats_type,
             "stats_status": stats_status,
             "rows": rows,
-            # คืนค่าฟิลเตอร์ให้ฟอร์ม
             "q": q,
             "type": type_filter,
             "status": status_filter,
@@ -522,7 +480,7 @@ def holiday_delete(request, pk: int):
 @login_required
 def menu_announcements(request):
     q = (request.GET.get("q") or "").strip()
-    show_all = _is_org_manager(request.user)  # ผู้ใช้ทั่วไปเห็นเฉพาะ active
+    show_all = _is_org_manager(request.user)
 
     qs = Announcement.objects.all()
     if not show_all:
@@ -598,3 +556,130 @@ def menu_courier(request):
 @login_required
 def menu_myteam(request):
     return render_ctx(request, "hr/overview.html", {"placeholder": "My Team – coming soon"})
+
+
+# =========================
+# One-click approve/reject via email
+# =========================
+def _is_approver_email(actor_email: str) -> bool:
+    if not actor_email:
+        return False
+    u = User.objects.filter(email__iexact=actor_email.strip()).first()
+    if not u:
+        return False
+    if u.is_staff or u.is_superuser:
+        return True
+    if u.groups.filter(name__iexact="manager").exists():
+        return True
+    try:
+        if Employee.objects.filter(user=u, is_team_lead=True).exists():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _apply_action(lr: LeaveRequest, action: str, actor_email: str) -> bool:
+    if getattr(settings, "APPROVAL_REQUIRE_PERMISSION", True):
+        if not _is_approver_email(actor_email):
+            return False
+
+    action = (action or "").lower()
+    user = User.objects.filter(email__iexact=actor_email).first()
+
+    if action == "approve":
+        lr.status = "approved"
+        if hasattr(lr, "approved_at"):
+            lr.approved_at = timezone.now()
+        if user and hasattr(lr, "approved_by"):
+            lr.approved_by = user
+    elif action == "reject":
+        lr.status = "rejected"
+        if hasattr(lr, "rejected_at"):
+            lr.rejected_at = timezone.now()
+        if user and hasattr(lr, "rejected_by"):
+            lr.rejected_by = user
+    else:
+        return False
+
+    lr.save()
+    return True
+
+
+# --- NEW: หน้า public แสดงผลหลังคลิกอีเมล ---
+def email_action_result(request, pk: int):
+    lr = get_object_or_404(
+        LeaveRequest.objects.select_related("employee__user", "employee__team"),
+        pk=pk,
+    )
+    return render(request, "hr/leave_action_result.html", {"leave": lr})
+
+
+@require_GET
+def email_approve_leave(request):
+    from .utils.tokens import parse_leave_action_token
+
+    token = request.GET.get("t")
+    if not token:
+        return HttpResponseBadRequest("missing token")
+    try:
+        leave_id, action, actor_email = parse_leave_action_token(token)
+    except SignatureExpired:
+        return HttpResponseForbidden("ลิงก์หมดอายุแล้ว")
+    except BadSignature:
+        return HttpResponseForbidden("ลิงก์ไม่ถูกต้อง")
+
+    lr = get_object_or_404(LeaveRequest, pk=leave_id)
+    if not _apply_action(lr, "approve", actor_email):
+        return HttpResponseForbidden("คุณไม่มีสิทธิ์ดำเนินการ")
+
+    return redirect("hr:email_action_result", pk=lr.pk)
+
+
+@require_GET
+def email_reject_leave(request):
+    from .utils.tokens import parse_leave_action_token
+
+    token = request.GET.get("t")
+    if not token:
+        return HttpResponseBadRequest("missing token")
+    try:
+        leave_id, action, actor_email = parse_leave_action_token(token)
+    except SignatureExpired:
+        return HttpResponseForbidden("ลิงก์หมดอายุแล้ว")
+    except BadSignature:
+        return HttpResponseForbidden("ลิงก์ไม่ถูกต้อง")
+
+    lr = get_object_or_404(LeaveRequest, pk=leave_id)
+    if not _apply_action(lr, "reject", actor_email):
+        return HttpResponseForbidden("คุณไม่มีสิทธิ์ดำเนินการ")
+
+    return redirect("hr:email_action_result", pk=lr.pk)
+
+
+# =========================
+# Leave detail (internal – ต้องล็อกอิน)
+# =========================
+@login_required
+def leave_detail(request, pk: int):
+    lr = get_object_or_404(
+        LeaveRequest.objects.select_related("employee__user", "employee__team"),
+        pk=pk,
+    )
+
+    can_view = False
+    if _is_org_manager(request.user):
+        can_view = True
+    elif _is_team_lead(request.user):
+        me_emp = Employee.objects.filter(user=request.user).select_related("team").first()
+        if me_emp and me_emp.team_id and lr.employee.team_id == me_emp.team_id:
+            can_view = True
+        if lr.employee.user_id == request.user.id:
+            can_view = True
+    else:
+        can_view = (lr.employee.user_id == request.user.id)
+
+    if not can_view:
+        return HttpResponseForbidden("คุณไม่มีสิทธิ์เข้าถึงคำขอนี้")
+
+    return render_ctx(request, "hr/leave_detail.html", {"leave": lr})

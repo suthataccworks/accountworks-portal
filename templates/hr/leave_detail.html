@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>รายละเอียดคำขอลา</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:Segoe UI,Arial,Helvetica,sans-serif;margin:0;background:#f6f7f9;color:#111827}
+    .wrap{max-width:900px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    .head{padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px}
+    .title{font-size:18px;font-weight:700;margin:0}
+    .body{padding:20px}
+    .row{display:grid;grid-template-columns:160px 1fr;gap:8px 12px;margin-bottom:8px}
+    .label{color:#6b7280}
+    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px}
+    .approved{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .pending{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+    .rejected{background:#fef2f2;color:#7f1d1d;border:1px solid #fecaca}
+    .actions{margin-top:16px;display:flex;gap:8px}
+    .btn{display:inline-block;text-decoration:none;padding:10px 14px;border-radius:8px;border:1px solid #e5e7eb}
+    .btn-primary{background:#3b82f6;color:#fff;border-color:#3b82f6}
+    .btn-outline{background:#fff;color:#111827}
+    .muted{color:#6b7280}
+    .msgs{margin-bottom:16px}
+    .msg{padding:10px 12px;border-radius:8px;margin-bottom:8px}
+    .msg-success{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .msg-info{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe}
+    .msg-error{background:#fef2f2;color:#7f1d1d;border:1px solid #fecaca}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <h1 class="title">รายละเอียดคำขอลา</h1>
+        {% if leave.status %}
+          {% with s=leave.status %}
+            <span class="badge {% if s == 'approved' %}approved{% elif s == 'rejected' %}rejected{% else %}pending{% endif %}">
+              {{ leave.get_status_display|default:leave.status }}
+            </span>
+          {% endwith %}
+        {% endif %}
+      </div>
+
+      <div class="body">
+        <!-- Django messages (ถ้ามี) -->
+        <div class="msgs">
+          {% if messages %}
+            {% for m in messages %}
+              <div class="msg {% if m.tags == 'success' %}msg-success{% elif m.tags == 'error' %}msg-error{% else %}msg-info{% endif %}">
+                {{ m }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+
+        <div class="row">
+          <div class="label">ผู้ยื่น</div>
+          <div>{{ leave.employee.user.get_full_name|default:leave.employee.user.username }}</div>
+        </div>
+        <div class="row">
+          <div class="label">ทีม</div>
+          <div>{{ leave.employee.team.name|default:"-" }}</div>
+        </div>
+        <div class="row">
+          <div class="label">ชนิดลา</div>
+          <div>{{ leave.get_leave_type_display|default:leave.leave_type }}</div>
+        </div>
+        <div class="row">
+          <div class="label">ช่วงวัน</div>
+          <div>
+            {{ leave.start_date }} – {{ leave.end_date }}
+            {% with td=leave.total_days %}{% if td %}<span class="muted"> ({{ td }} วัน)</span>{% endif %}{% endwith %}
+          </div>
+        </div>
+        <div class="row">
+          <div class="label">เหตุผล</div>
+          <div>{{ leave.reason|default:"-" }}</div>
+        </div>
+        <div class="row">
+          <div class="label">สร้างเมื่อ</div>
+          <div>{{ leave.created_at|date:"Y-m-d H:i" }}</div>
+        </div>
+
+        <div class="actions">
+          <a class="btn btn-outline" href="{% url 'hr:leave_dashboard' %}">← กลับแดชบอร์ด</a>
+          {% if is_manager_or_admin and leave.status == 'pending' %}
+            <form method="post" action="{% url 'hr:update_request_status' leave.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="approve">
+              <button class="btn btn-primary" type="submit">อนุมัติ</button>
+            </form>
+            <form method="post" action="{% url 'hr:update_request_status' leave.pk %}" style="display:inline-block">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="reject">
+              <button class="btn" type="submit">ปฏิเสธ</button>
+            </form>
+          {% endif %}
+        </div>
+
+        <p class="muted" style="margin-top:12px;">
+          หมายเหตุ: ถ้าใบนี้อนุมัติผ่านอีเมล ระบบจะตัดโควตาอัตโนมัติแล้ว
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

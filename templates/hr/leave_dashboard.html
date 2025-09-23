@@ -27,22 +27,47 @@
   <a href="{% url 'leave_request' %}" class="btn btn-primary rounded-3 px-4">+ Submit Leave</a>
 </div>
 
-<!-- KPIs (dynamic from balance_cards) -->
+<!-- KPIs (support new 'balance_cards' and fallback to legacy 'balance') -->
 <div class="row g-3 mb-4">
-  {% for c in balance_cards %}
-    <div class="col-12 col-md-4 col-lg-3">
+  {% if balance_cards %}
+    {% for c in balance_cards %}
+      <div class="col-12 col-md-4 col-lg-3">
+        <div class="aw-kpi">
+          <div class="emoji">{{ c.emoji }}</div>
+          <div>
+            <div class="label">{{ c.label }}</div>
+            <div class="value">{{ c.value }} วัน</div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="col-12 col-md-4">
       <div class="aw-kpi">
-        <div class="emoji">{{ c.emoji }}</div>
+        <div class="emoji">🌴</div>
         <div>
-          <div class="label">{{ c.label }}</div>
-          <div class="value">{{ c.value }} วัน</div>
+          <div class="label">Annual leave</div>
+          <div class="value">{{ balance.annual_leave|default:0 }}</div>
         </div>
       </div>
     </div>
-  {% endfor %}
-  {% if balance_cards|length == 0 %}
-    <div class="col-12">
-      <div class="empty">ยังไม่มีข้อมูลโควตาวันลาของคุณ</div>
+    <div class="col-12 col-md-4">
+      <div class="aw-kpi">
+        <div class="emoji">🤒</div>
+        <div>
+          <div class="label">Sick leave</div>
+          <div class="value">{{ balance.sick_leave|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="aw-kpi">
+        <div class="emoji">🏠</div>
+        <div>
+          <div class="label">Personal leave</div>
+          <div class="value">{{ balance.personal_leave|default:0 }}</div>
+        </div>
+      </div>
     </div>
   {% endif %}
 </div>

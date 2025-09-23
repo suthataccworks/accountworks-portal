@@ -16,6 +16,9 @@ def _split_env(name: str):
 ALLOWED_HOSTS = _split_env("ALLOWED_HOSTS") or [".onrender.com", "127.0.0.1", "localhost"]
 CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrender.com"]
 
+# ===== Site URL (ใช้สร้างลิงก์ในอีเมล) =====
+SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
+
 # ===== Apps =====
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -70,6 +73,17 @@ DATABASES = {
     )
 }
 
+# ===== Email (ใช้ ENV เป็นหลัก; fallback ปลอดภัย) =====
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "25"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "0") == "1"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "0") == "1"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "")
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+
 # ===== Password validators (คงของเดิม) =====
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -99,6 +113,10 @@ LOGIN_REDIRECT_URL = "app_dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ===== One-click approval permission gate =====
+# True = ต้องตรวจสิทธิ์ (ค่าเริ่มต้น), False = ไม่ตรวจสิทธิ์ (ใครมีลิงก์กดแล้วสำเร็จ)
+APPROVAL_REQUIRE_PERMISSION = os.getenv("APPROVAL_REQUIRE_PERMISSION", "1") == "1"
 
 # ===== Production hardening =====
 if not DEBUG:

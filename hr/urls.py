@@ -1,5 +1,8 @@
+# hr/urls.py
 from django.urls import path
 from . import views
+
+app_name = "hr"
 
 urlpatterns = [
     path("", views.app_dashboard, name="app_dashboard"),
@@ -9,6 +12,12 @@ urlpatterns = [
     path("leave-request/", views.leave_request, name="leave_request"),
     path("manage/", views.manage_requests, name="manage_requests"),
     path("requests/<int:pk>/status/", views.update_request_status, name="update_request_status"),
+    path("leave/<int:pk>/", views.leave_detail, name="leave_detail"),
+
+    # One-click approve/reject via email (public)
+    path("email/leave/approve", views.email_approve_leave, name="email_approve_leave"),
+    path("email/leave/reject",  views.email_reject_leave,  name="email_reject_leave"),
+    path("email/leave/result/<int:pk>/", views.email_action_result, name="email_action_result"),
 
     # Overview
     path("overview/", views.menu_overview, name="menu_overview"),
