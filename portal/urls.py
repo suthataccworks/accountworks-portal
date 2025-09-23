@@ -4,25 +4,23 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
-# ใช้ view ของแอป HR สำหรับเส้นทางอนุมัติ/ปฏิเสธแบบ one-click
+# สำหรับผูกเส้นอีเมลแบบตรง (เผื่อ namespace พลาด)
 from hr import views as hr_views
 
 urlpatterns = [
-    # แอดมิน
     path("admin/", admin.site.urls),
 
-    # หน้า login/logout/password reset มาตรฐานของ Django
-    # (จะได้ URL name 'login' สำหรับ @login_required)
+    # เส้น auth มาตรฐานของ Django (login/logout/password reset ฯลฯ)
     path("accounts/", include("django.contrib.auth.urls")),
 
-    # รวมทุกเส้นทางของแอป HR ไว้ที่ root (namespace = "hr")
+    # รวมทุกเส้นทางของแอป HR ที่ root และตั้ง namespace = "hr"
     path("", include(("hr.urls", "hr"), namespace="hr")),
 
-    # ผูกเส้น one-click แบบตรง (กันพลาด namespace/include หรือ proxy เติม/ตัด slash)
+    # ผูก one-click approve/reject แบบตรงกันพลาด
     path("email/leave/approve", hr_views.email_approve_leave),
     path("email/leave/reject",  hr_views.email_reject_leave),
 ]
 
-# เสิร์ฟไฟล์สื่อในโหมดพัฒนาเท่านั้น
+# เสิร์ฟ media ใน dev เท่านั้น
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -16,7 +16,7 @@ def _split_env(name: str):
 ALLOWED_HOSTS = _split_env("ALLOWED_HOSTS") or [".onrender.com", "127.0.0.1", "localhost"]
 CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrender.com"]
 
-# ===== Site URL (ใช้สร้างลิงก์ในอีเมล) =====
+# (เผื่อใช้ในอีเมล/ลิงก์)
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
 # ===== Apps =====
@@ -27,13 +27,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "hr.apps.HrConfig",   # <- ของเดิมคุณ
+    "hr.apps.HrConfig",   # แอปของคุณ
 ]
 
 # ===== Middleware =====
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",   # <- เสิร์ฟ static ในโปรดักชัน
+    "whitenoise.middleware.WhiteNoiseMiddleware",   # เสิร์ฟ static ในโปรดักชัน
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -55,7 +55,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "hr.context_processors.role_flags",  # <- ของเดิมคุณ
+                "hr.context_processors.role_flags",
             ],
         },
     },
@@ -64,7 +64,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "portal.wsgi.application"
 
 # ===== Database =====
-# Dev = SQLite, Prod = Postgres จาก DATABASE_URL
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR/'db.sqlite3'}",
@@ -73,18 +72,7 @@ DATABASES = {
     )
 }
 
-# ===== Email (ใช้ ENV เป็นหลัก; fallback ปลอดภัย) =====
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "25"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "0") == "1"
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "0") == "1"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "")
-SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
-
-# ===== Password validators (คงของเดิม) =====
+# ===== Password validators =====
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -100,23 +88,19 @@ USE_TZ = True
 
 # ===== Static & Media =====
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"  # <- สำคัญสำหรับ collectstatic บน Render
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# ===== Auth redirects (คงของเดิม) =====
-LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "app_dashboard"
-LOGOUT_REDIRECT_URL = "login"
+# ===== Auth redirects (แก้ namespace ให้ถูก) =====
+LOGIN_URL = "login"  # ใช้ของ django.contrib.auth.urls
+LOGIN_REDIRECT_URL = "hr:app_dashboard"
+LOGOUT_REDIRECT_URL = "hr:app_dashboard"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-# ===== One-click approval permission gate =====
-# True = ต้องตรวจสิทธิ์ (ค่าเริ่มต้น), False = ไม่ตรวจสิทธิ์ (ใครมีลิงก์กดแล้วสำเร็จ)
-APPROVAL_REQUIRE_PERMISSION = os.getenv("APPROVAL_REQUIRE_PERMISSION", "1") == "1"
 
 # ===== Production hardening =====
 if not DEBUG:
