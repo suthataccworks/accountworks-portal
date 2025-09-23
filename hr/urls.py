@@ -12,11 +12,13 @@ urlpatterns = [
     path("leave-request/", views.leave_request, name="leave_request"),
     path("manage/", views.manage_requests, name="manage_requests"),
     path("requests/<int:pk>/status/", views.update_request_status, name="update_request_status"),
-    path("leave/<int:pk>/", views.leave_detail, name="leave_detail"),
+    path("leave/<int:pk>/", views.leave_detail, name="leave_detail"),  # NEW: รายละเอียดใบลา
 
-    # One-click approve/reject via email (public)
+    # One-click approve/reject via email (ตัวจัดการอยู่ใน portal/urls ด้วยซ้ำเพื่อกัน namespace พลาด)
     path("email/leave/approve", views.email_approve_leave, name="email_approve_leave"),
     path("email/leave/reject",  views.email_reject_leave,  name="email_reject_leave"),
+
+    # ผลลัพธ์หลังคลิกจากอีเมล (สาธารณะ)
     path("email/leave/result/<int:pk>/", views.email_action_result, name="email_action_result"),
 
     # Overview

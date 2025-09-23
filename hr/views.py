@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.timezone import make_naive
 from django.core.paginator import Paginator
+from django.views.decorators.http import require_GET
 
 from .forms import LeaveRequestForm, HolidayForm, AnnouncementForm
 from .models import (
@@ -230,6 +231,53 @@ def leave_request(request):
         form = LeaveRequestForm()
 
     return render_ctx(request, "hr/leave_request.html", {"form": form})
+
+
+# ===== NEW: รายละเอียดใบลา (ต้องล็อกอิน) =====
+@login_required
+@require_GET
+def leave_detail(request, pk: int):
+    """
+    แสดงรายละเอียดใบลาของผู้ใช้ (หลังล็อกอิน)
+    ใช้เทมเพลต: templates/hr/leave_detail.html
+    """
+    lr = get_object_or_404(
+        LeaveRequest.objects.select_related("employee__user", "employee__team"),
+        pk=pk,
+    )
+
+    # อนุญาตให้ผู้เกี่ยวข้องเห็น: เจ้าของคำขอ, หัวหน้าทีมทีมเดียวกัน, manager/admin
+    allowed = False
+    try:
+        if lr.employee.user_id == request.user.id:
+            allowed = True
+        elif _is_org_manager(request.user):
+            allowed = True
+        elif _is_team_lead(request.user):
+            me = Employee.objects.filter(user=request.user).select_related("team").first()
+            if me and lr.employee.team_id and me.team_id == lr.employee.team_id:
+                allowed = True
+    except Exception:
+        pass
+
+    if not allowed:
+        return HttpResponseForbidden("คุณไม่มีสิทธิ์เข้าดูรายการนี้")
+
+    return render_ctx(request, "hr/leave_detail.html", {"leave": lr})
+
+
+# ===== NEW: หน้าผลการอนุมัติ/ปฏิเสธจากอีเมล (สาธารณะ) =====
+@require_GET
+def email_action_result(request, pk: int):
+    """
+    หน้าแสดงผลลัพธ์หลังคลิกอนุมัติ/ปฏิเสธจากอีเมล (สาธารณะ)
+    ใช้เทมเพลต: templates/hr/leave_action_result.html
+    """
+    lr = get_object_or_404(
+        LeaveRequest.objects.select_related("employee__user", "employee__team"),
+        pk=pk,
+    )
+    return render(request, "hr/leave_action_result.html", {"leave": lr})
 
 
 # =========================
