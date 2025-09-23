@@ -1,21 +1,69 @@
 # hr/utils/tokens.py
-from django.core.signing import TimestampSigner
+from __future__ import annotations
+import os
+from typing import Tuple, Dict, Any
 
-_signer = TimestampSigner()
+from django.core import signing
+
+# เกลือสำหรับโทเค็น (ปรับชื่อได้ แต่ควรคงเดิมหลัง deploy)
+SALT = "hr.leave.email.action"
+
+# อายุโทเค็น (วินาที) ค่าเริ่มต้น = 14 วัน
+TOKEN_MAX_AGE = int(os.getenv("LEAVE_TOKEN_MAX_AGE", "1209600"))  # 14*24*60*60
+
+__all__ = [
+    "make_leave_action_token",
+    "validate_leave_action_token",
+]
+
 
 def make_leave_action_token(leave_id: int, action: str, actor_email: str) -> str:
     """
-    สร้างโทเค็นลงนาม/มีอายุ: "{leave_id}:{action}:{actor_email}"
-    action: "approve" | "reject"
+    สร้างโทเค็นสำหรับลิงก์ในอีเมล
+    - leave_id: ไอดีใบลา
+    - action: "approve" หรือ "reject"
+    - actor_email: อีเมลของผู้ที่จะกดลิงก์ (กันส่งต่อ)
     """
-    payload = f"{int(leave_id)}:{action.lower()}:{actor_email.strip().lower()}"
-    return _signer.sign(payload)
+    if action not in {"approve", "reject"}:
+        raise ValueError("action must be 'approve' or 'reject'")
 
-def parse_leave_action_token(token: str, max_age_seconds: int = 3 * 24 * 3600):
+    payload = {
+        "leave_id": int(leave_id),
+        "action": action,
+        "actor": (actor_email or "").strip().lower(),
+    }
+    return signing.dumps(payload, salt=SALT)
+
+
+def validate_leave_action_token(token: str) -> Tuple[bool, Dict[str, Any]]:
     """
-    คืนค่า: (leave_id:int, action:str, actor_email:str)
-    โยน SignatureExpired/BadSignature หากหมดอายุหรือผิดลายเซ็น
+    ตรวจสอบโทเค็นจากลิงก์ในอีเมล
+    คืนค่า (ok, data|reason)
+    - ok=True  -> data = {"leave_id":..., "action":..., "actor": ...}
+    - ok=False -> data = {"reason": "..."}
     """
-    value = _signer.unsign(token, max_age=max_age_seconds)
-    leave_id_str, action, actor_email = value.split(":", 3)
-    return int(leave_id_str), action, actor_email
+    if not token:
+        return False, {"reason": "missing"}
+
+    try:
+        data = signing.loads(token, salt=SALT, max_age=TOKEN_MAX_AGE)
+    except signing.SignatureExpired:
+        return False, {"reason": "expired"}
+    except signing.BadSignature:
+        return False, {"reason": "bad-signature"}
+    except Exception as e:
+        return False, {"reason": f"error:{type(e).__name__}"}
+
+    # ตรวจโครงสร้างขั้นต่ำ
+    action = data.get("action")
+    if action not in {"approve", "reject"}:
+        return False, {"reason": "bad-action"}
+
+    if "leave_id" not in data:
+        return False, {"reason": "missing-leave-id"}
+
+    # ทำความสะอาดอีเมลผู้กด
+    actor = (data.get("actor") or "").strip().lower()
+    data["actor"] = actor
+
+    return True, data
