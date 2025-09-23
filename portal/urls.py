@@ -16,6 +16,7 @@ urlpatterns = [
     # เส้น auth มาตรฐานของ Django (login/logout/password reset)
     path("accounts/", include("django.contrib.auth.urls")),
 
+
     # รวมเส้นทางของแอป HR ไว้ที่ root (namespace = "hr")
     path("", include(("hr.urls", "hr"), namespace="hr")),
 
