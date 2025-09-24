@@ -19,6 +19,18 @@ CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrende
 # (เผื่อใช้ในอีเมล/ลิงก์)
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
+# ===== Email =====
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"  # ห้ามเปิดพร้อม TLS
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "AccountWorks Portal <hr.accworks@gmail.com>")
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+
 # ===== Apps =====
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -95,12 +107,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-
 # ===== Auth redirects =====
 LOGIN_URL = "auth:login"
 LOGIN_REDIRECT_URL = "/home/"     # ⬅️ ล็อกอินเสร็จให้มาที่หน้า Home
 LOGOUT_REDIRECT_URL = "auth:login"
-
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
