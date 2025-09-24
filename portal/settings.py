@@ -97,7 +97,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # ===== Auth redirects =====
 LOGIN_URL = "auth:login"                 # ใช้ namespace 'auth'
-LOGIN_REDIRECT_URL = "hr:app_dashboard"  # ตรวจว่า route นี้มีอยู่จริง
+LOGIN_REDIRECT_URL = "/"  # ตรวจว่า route นี้มีอยู่จริง
 LOGOUT_REDIRECT_URL = "auth:login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
