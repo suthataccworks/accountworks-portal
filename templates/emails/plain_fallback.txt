@@ -1,7 +1,7 @@
 [คำขอลาใหม่]
 
-ผู้ยื่น: {{ leave.employee.user.get_full_name|default:leave.employee.user.username }}
-ชนิดลา: {{ leave.get_leave_type_display|default:leave.leave_type }}
+ผู้ยื่น: {{ leave.employee.user.get_full_name|default:leave.employee.user.username|default:"-" }}
+ชนิดลา: {{ leave.get_leave_type_display|default:leave.leave_type|default:"-" }}
 ช่วง: {{ leave.start_date }} – {{ leave.end_date }}{% with td=leave.total_days %}{% if td %} ({{ td }} วัน){% endif %}{% endwith %}
 เหตุผล: {{ leave.reason|default:"-" }}
 
