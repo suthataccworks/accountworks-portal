@@ -24,10 +24,10 @@
 
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="section-title m-0">Leave Balance</h2>
-  <a href="{% url 'leave_request' %}" class="btn btn-primary rounded-3 px-4">+ Submit Leave</a>
+  <a href="{% url 'hr:leave_request' %}" class="btn btn-primary rounded-3 px-4">+ Submit Leave</a>
 </div>
 
-<!-- KPIs (support new 'balance_cards' and fallback to legacy 'balance') -->
+<!-- KPIs -->
 <div class="row g-3 mb-4">
   {% if balance_cards %}
     {% for c in balance_cards %}
@@ -98,21 +98,13 @@
             {% for r in requests %}
               <tr>
                 <td class="fw-semibold">
-                  {% if r.leave_type == "annual" %}
-                    🌴
-                  {% elif r.leave_type == "sick" %}
-                    🤒
-                  {% elif r.leave_type == "personal" %}
-                    🏠
-                  {% elif r.leave_type == "relax" %}
-                    😌
-                  {% elif r.leave_type == "unpaid" %}
-                    💸
-                  {% elif r.leave_type == "maternity" %}
-                    👶
-                  {% else %}
-                    🗂
-                  {% endif %}
+                  {% if r.leave_type == "annual" %}🌴
+                  {% elif r.leave_type == "sick" %}🤒
+                  {% elif r.leave_type == "personal" %}🏠
+                  {% elif r.leave_type == "relax" %}😌
+                  {% elif r.leave_type == "unpaid" %}💸
+                  {% elif r.leave_type == "maternity" %}👶
+                  {% else %}🗂{% endif %}
                   {{ r.get_leave_type_display }}
                 </td>
                 <td class="text-nowrap">
@@ -137,7 +129,7 @@
       </div>
     {% else %}
       <div class="empty">
-        ยังไม่มีประวัติการลา <a href="{% url 'leave_request' %}">เริ่มยื่นคำขอลาแรกของคุณ</a> เลยสิ!
+        ยังไม่มีประวัติการลา <a href="{% url 'hr:leave_request' %}">เริ่มยื่นคำขอลาแรกของคุณ</a> เลยสิ!
       </div>
     {% endif %}
   </div>
