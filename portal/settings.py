@@ -95,12 +95,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# ===== Auth redirects (แก้ namespace ให้ถูก) =====
-# ===== Auth redirects (ใช้ namespace ที่ตั้งด้านบน) =====
-LOGIN_URL = "auth:login"                 # ✅ ชี้ไปที่ auth:login โดยตรง
+# ===== Auth redirects =====
+LOGIN_URL = "auth:login"                 # ใช้ namespace 'auth'
 LOGIN_REDIRECT_URL = "hr:app_dashboard"  # ตรวจว่า route นี้มีอยู่จริง
-LOGOUT_REDIRECT_URL = "auth:login"       # แนะนำให้กลับไปหน้า login หลังออก
-
+LOGOUT_REDIRECT_URL = "auth:login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -112,3 +110,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+    # สำคัญบน Render: เชื่อ header จากพร็อกซีเพื่อทราบว่ารีเควสต์ต้นทางเป็น HTTPS
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
