@@ -1,20 +1,25 @@
+# hr/urls.py
 from django.urls import path
 from . import views
 
 app_name = "hr"
 
 urlpatterns = [
-    # เดิมคือ "" → ย้ายมาอยู่ /home/ เพื่อไม่ชนรูท
+    # Home
     path("home/", views.app_dashboard, name="app_dashboard"),
 
-    # Leave
+    # Leave (self)
     path("dashboard/", views.leave_dashboard, name="leave_dashboard"),
     path("leave/request/", views.leave_request, name="leave_request"),
     path("leave/<int:pk>/", views.leave_detail, name="leave_detail"),
+
+    # Manage (team lead / manager)
     path("manage/", views.manage_requests, name="manage_requests"),
     path("requests/<int:pk>/status/", views.update_request_status, name="update_request_status"),
 
-    # Email action result (public)
+    # Email one-click (public)
+    path("email/leave/approve/", views.email_approve_leave, name="email_approve"),
+    path("email/leave/reject/",  views.email_reject_leave,  name="email_reject"),
     path("email/leave/result/<int:pk>/", views.email_action_result, name="email_action_result"),
 
     # Overview
@@ -36,4 +41,7 @@ urlpatterns = [
     # Placeholders
     path("courier/", views.menu_courier, name="menu_courier"),
     path("myteam/", views.menu_myteam, name="menu_myteam"),
+
+    # Email diagnostics (staff only)
+    path("diag/email/leave/<int:leave_id>/", views.email_diag_leave, name="email_diag_leave"),
 ]
