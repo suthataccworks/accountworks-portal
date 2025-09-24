@@ -8,11 +8,12 @@ from typing import Optional
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count, Q
 from django.http import (
     HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, HttpRequest
 )
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import make_naive
@@ -30,6 +31,7 @@ from .models import (
 )
 from .emails import send_leave_status_to_requester  # แจ้งผู้ยื่นเมื่อสถานะเปลี่ยน
 from .utils.tokens import validate_leave_action_token  # ตรวจ token จากอีเมล
+
 
 # =========================
 # Utils
@@ -95,7 +97,7 @@ def render_ctx(request, template_name, ctx=None):
 # =========================
 # Dashboards
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def app_dashboard(request):
     """โฮมแดชบอร์ด (กันพังกรณี DB/ตารางยังไม่พร้อม)"""
     today = timezone.localdate()
@@ -159,7 +161,7 @@ LEAVE_KPIS = [
     ("other",     "🗂", "Other leave",    "other_leave"),
 ]
 
-@login_required
+@login_required(login_url="auth:login")
 def leave_dashboard(request):
     """แดชบอร์ดส่วนตัวของการลา (สร้าง Employee/Balance อัตโนมัติถ้ายังไม่มี)"""
     employee, _ = Employee.objects.get_or_create(
@@ -191,9 +193,13 @@ def leave_dashboard(request):
     )
 
 
-@login_required
+@login_required(login_url="auth:login")
 def leave_request(request):
-    employee = get_object_or_404(Employee, user=request.user)
+    # เดิมใช้ get_object_or_404 -> ผู้ใช้ใหม่ที่ยังไม่มี Employee จะ 404
+    employee, _ = Employee.objects.get_or_create(
+        user=request.user,
+        defaults={"position": "", "team": None, "is_team_lead": False},
+    )
 
     if request.method == "POST":
         form = LeaveRequestForm(request.POST)
@@ -211,7 +217,7 @@ def leave_request(request):
                 pass
             lr.save()
             messages.success(request, "ส่งคำขอลาสำเร็จ ✅")
-            return redirect("leave_dashboard")
+            return redirect("hr:leave_dashboard")
         messages.error(request, "กรุณาตรวจสอบฟอร์มอีกครั้ง")
     else:
         form = LeaveRequestForm()
@@ -220,7 +226,7 @@ def leave_request(request):
 
 
 # ===== รายละเอียดใบลา (ต้องล็อกอิน) =====
-@login_required
+@login_required(login_url="auth:login")
 @require_GET
 def leave_detail(request, pk: int):
     lr = get_object_or_404(
@@ -255,7 +261,7 @@ def _perform_email_action(request: HttpRequest, action: str):
     """
     แกนกลาง: รับ token จาก query ?t=... -> ตรวจสอบ -> เปลี่ยนสถานะ -> ส่งไปหน้า result
     - ถ้าเปิด APPROVAL_REQUIRE_PERMISSION=1: ต้องล็อกอินเป็นผู้มีสิทธิ์ (หัวหน้าทีม / manager / staff)
-      * ถ้าไม่ล็อกอิน -> redirect ไป login
+      * ถ้าไม่ล็อกอิน -> ส่งไปหน้า login โดยเก็บ next ไว้
     - ถ้า =0: อนุญาต one-click โดยไม่ต้องล็อกอิน (เหมาะกับ dev/ทดสอบ)
     """
     token = request.GET.get("t")
@@ -279,12 +285,14 @@ def _perform_email_action(request: HttpRequest, action: str):
     )
 
     # นโยบายสิทธิ์
-    require_perm = str(getattr(settings, "APPROVAL_REQUIRE_PERMISSION", "1")) in ("1", "true", "True")
+    require_perm = str(getattr(settings, "APPROVAL_REQUIRE_PERMISSION", "1")).lower() in ("1", "true", "yes")
     if require_perm:
-        # ถ้าไม่ได้ล็อกอิน ให้พาไป login ก่อน
         if not request.user.is_authenticated:
-            login_url = reverse("login")
-            return redirect(f"{login_url}?next={request.get_full_path()}")
+            # ✅ ใช้ redirect_to_login เพื่อเลี่ยง NoReverseMatch (namespace 'auth:login')
+            return redirect_to_login(
+                request.get_full_path(),
+                login_url=resolve_url(settings.LOGIN_URL)  # จะเป็น 'auth:login'
+            )
 
         # ต้องเป็นหัวหน้าทีมของทีมเดียวกัน / manager / staff
         allowed = _is_org_manager(request.user)
@@ -336,7 +344,7 @@ def email_action_result(request, pk: int):
 # =========================
 # Manage Requests (team lead/org manager only)
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def manage_requests(request):
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
@@ -354,11 +362,11 @@ def manage_requests(request):
         allowed_qs = _visible_requests_for(request.user, LeaveRequest.objects.all())
         if not allowed_qs.filter(pk=lr.pk).exists():
             messages.error(request, "คุณไม่มีสิทธิ์อนุมัติคำขอนี้")
-            return redirect("manage_requests")
+            return redirect("hr:manage_requests")
 
         if lr.status != "pending":
             messages.info(request, "คำขอไม่อยู่ในสถานะ pending แล้ว")
-            return redirect("manage_requests")
+            return redirect("hr:manage_requests")
 
         if action == "approve":
             lr.status = "approved"
@@ -370,7 +378,7 @@ def manage_requests(request):
             messages.info(request, "ปฏิเสธแล้ว")
         else:
             messages.error(request, "ไม่รู้จัก action")
-        return redirect(request.META.get("HTTP_REFERER") or "manage_requests")
+        return redirect(request.META.get("HTTP_REFERER") or "hr:manage_requests")
 
     qs = LeaveRequest.objects.select_related(
         "employee", "employee__user", "employee__team"
@@ -394,7 +402,7 @@ def manage_requests(request):
     )
 
 
-@login_required
+@login_required(login_url="auth:login")
 def update_request_status(request, pk: int):
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
@@ -405,7 +413,7 @@ def update_request_status(request, pk: int):
     allowed_qs = _visible_requests_for(request.user, LeaveRequest.objects.all())
     if not allowed_qs.filter(pk=lr.pk).exists():
         messages.error(request, "คุณไม่มีสิทธิ์อนุมัติคำขอนี้")
-        return redirect("manage_requests")
+        return redirect("hr:manage_requests")
 
     action = request.POST.get("action")
     if action == "approve":
@@ -418,13 +426,13 @@ def update_request_status(request, pk: int):
         messages.info(request, "ปฏิเสธแล้ว")
     else:
         messages.error(request, "ไม่รู้จัก action")
-    return redirect("manage_requests")
+    return redirect("hr:manage_requests")
 
 
 # =========================
 # Overview Report (filters + CSV)
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def menu_overview(request):
     if not (_is_org_manager(request.user) or _is_team_lead(request.user)):
         return HttpResponseForbidden("เฉพาะหัวหน้าทีม/Manager/Admin")
@@ -558,13 +566,13 @@ def menu_overview(request):
 # =========================
 # Holidays (CRUD)
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def menu_holidays(request):
     holidays = Holiday.objects.order_by("date")
     return render_ctx(request, "hr/holidays.html", {"holidays": holidays})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def holiday_add(request):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -572,11 +580,11 @@ def holiday_add(request):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "เพิ่มวันหยุดสำเร็จ ✅")
-        return redirect("menu_holidays")
+        return redirect("hr:menu_holidays")
     return render_ctx(request, "hr/holiday_form.html", {"form": form, "title": "เพิ่มวันหยุด"})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def holiday_edit(request, pk: int):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -585,11 +593,11 @@ def holiday_edit(request, pk: int):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "แก้ไขวันหยุดสำเร็จ ✅")
-        return redirect("menu_holidays")
+        return redirect("hr:menu_holidays")
     return render_ctx(request, "hr/holiday_form.html", {"form": form, "title": "แก้ไขวันหยุด"})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def holiday_delete(request, pk: int):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -597,14 +605,14 @@ def holiday_delete(request, pk: int):
     if request.method == "POST":
         holiday.delete()
         messages.info(request, "ลบวันหยุดแล้ว 🗑")
-        return redirect("menu_holidays")
+        return redirect("hr:menu_holidays")
     return render_ctx(request, "hr/holiday_confirm_delete.html", {"holiday": holiday})
 
 
 # =========================
 # Announcements (CRUD)
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def menu_announcements(request):
     q = (request.GET.get("q") or "").strip()
     show_all = _is_org_manager(request.user)
@@ -624,7 +632,7 @@ def menu_announcements(request):
     )
 
 
-@login_required
+@login_required(login_url="auth:login")
 def announcement_detail(request, pk: int):
     a = get_object_or_404(Announcement, pk=pk)
     if not a.is_active and not _is_org_manager(request.user):
@@ -632,7 +640,7 @@ def announcement_detail(request, pk: int):
     return render_ctx(request, "hr/announcements_detail.html", {"a": a})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def announcement_add(request):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -643,11 +651,11 @@ def announcement_add(request):
         obj.published_at = timezone.now()
         obj.save()
         messages.success(request, "สร้างประกาศสำเร็จ ✅")
-        return redirect("menu_announcements")
+        return redirect("hr:menu_announcements")
     return render_ctx(request, "hr/announcements_form.html", {"form": form, "title": "สร้างประกาศ"})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def announcement_edit(request, pk: int):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -656,11 +664,11 @@ def announcement_edit(request, pk: int):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "อัปเดตประกาศสำเร็จ ✅")
-        return redirect("announcement_detail", pk=a.pk)
+        return redirect("hr:announcement_detail", pk=a.pk)
     return render_ctx(request, "hr/announcements_form.html", {"form": form, "title": "แก้ไขประกาศ"})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def announcement_delete(request, pk: int):
     if not _is_org_manager(request.user):
         return HttpResponseForbidden("เฉพาะ Manager/Admin")
@@ -668,18 +676,18 @@ def announcement_delete(request, pk: int):
     if request.method == "POST":
         a.delete()
         messages.info(request, "ลบประกาศแล้ว 🗑")
-        return redirect("menu_announcements")
+        return redirect("hr:menu_announcements")
     return render_ctx(request, "hr/announcements_confirm_delete.html", {"a": a})
 
 
 # =========================
 # Placeholder menus
 # =========================
-@login_required
+@login_required(login_url="auth:login")
 def menu_courier(request):
     return render_ctx(request, "hr/overview.html", {"placeholder": "Courier booking – coming soon"})
 
 
-@login_required
+@login_required(login_url="auth:login")
 def menu_myteam(request):
     return render_ctx(request, "hr/overview.html", {"placeholder": "My Team – coming soon"})
