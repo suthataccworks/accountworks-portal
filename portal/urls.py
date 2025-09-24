@@ -5,30 +5,39 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.views.generic.base import RedirectView
 from hr import views as hr_views
 
-def ping(_request): return HttpResponse("pong")
+def ping(_request):
+    return HttpResponse("pong")
 
 def root_router(request):
-    # ยังไม่ล็อกอิน → ไปหน้า login
+    # ยังไม่ล็อกอิน → ไปหน้า login ของ Django auth
     if not request.user.is_authenticated:
         return redirect("auth:login")
-    # ล็อกอินแล้ว → ไปแดชบอร์ด
+    # ล็อกอินแล้ว → ไปแดชบอร์ดผู้ใช้ (แก้ชื่อให้ตรงกับ hr/urls.py ถ้าต่าง)
     return redirect("hr:app_dashboard")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # auth (มี namespace เพื่อเลี่ยงชนชื่อ)
+    # auth ของ Django ใส่ namespace 'auth'
     path("accounts/", include(("django.contrib.auth.urls", "auth"), namespace="auth")),
 
-    # ✅ จับ '/' ก่อน แล้วค่อยรวมเส้นทาง HR
+    # ทางลัด /login → /accounts/login (เผื่อจำสั้น)
+    path("login/", RedirectView.as_view(pattern_name="auth:login", permanent=False), name="login-shortcut"),
+
+    # ✅ จับ root "/" ตรงนี้ก่อน แล้วค่อย include เส้นทางของ HR
     path("", root_router, name="root"),
+
+    # เส้นทางของ HR (ต้องมา *หลัง* root_router)
     path("", include(("hr.urls", "hr"), namespace="hr")),
 
+    # one-click approve/reject
     path("email/leave/approve/", hr_views.email_approve_leave, name="email_approve_leave"),
     path("email/leave/reject/",  hr_views.email_reject_leave,  name="email_reject_leave"),
 
+    # healthcheck
     path("ping/", ping),
 ]
 
