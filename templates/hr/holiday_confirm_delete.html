@@ -6,6 +6,6 @@
 <form method="post">
   {% csrf_token %}
   <button type="submit" class="btn btn-danger">ลบ</button>
-  <a href="{% url 'menu_holidays' %}" class="btn btn-secondary">ยกเลิก</a>
+  <a href="{% url 'hr:menu_holidays' %}" class="btn btn-secondary">ยกเลิก</a>
 </form>
 {% endblock %}
