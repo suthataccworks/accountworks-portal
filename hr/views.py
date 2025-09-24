@@ -29,8 +29,8 @@ from .models import (
     Holiday,
     Announcement,
 )
-from .emails import send_leave_status_to_requester  # แจ้งผู้ยื่นเมื่อสถานะเปลี่ยน
-from .utils.tokens import validate_leave_action_token  # ตรวจ token จากอีเมล
+from .emails import send_leave_status_to_requester
+from .utils.tokens import validate_leave_action_token
 
 
 # =========================
@@ -71,6 +71,11 @@ def _is_manager_or_admin(user) -> bool:
     return _is_org_manager(user)
 
 
+def _is_approver(user) -> bool:
+    # สำหรับโชว์เมนูอนุมัติใน navbar (หัวหน้าทีม/manager/admin)
+    return _is_org_manager(user) or _is_team_lead(user)
+
+
 def _visible_requests_for(user, base_qs):
     if _is_org_manager(user):
         return base_qs
@@ -88,7 +93,34 @@ def _visible_requests_for(user, base_qs):
 
 
 def render_ctx(request, template_name, ctx=None):
-    base = {"is_manager_or_admin": _is_manager_or_admin(request.user)}
+    """
+    ใส่แฟล็ก/ตัวนับที่ navbar ใช้ไว้ให้ทุกหน้า:
+    - is_manager_or_admin: ใช้เปิดเมนู overview
+    - is_approver: ใช้เปิดเมนูอนุมัติ
+    - pending_count: ป้ายแดงจำนวน pending (เฉพาะผู้มีสิทธิ์เห็น)
+    """
+    base = {
+        "is_manager_or_admin": _is_manager_or_admin(request.user),
+        "is_approver": _is_approver(request.user),
+        "pending_count": 0,
+    }
+
+    # คำนวณ pending_count เฉพาะผู้มีสิทธิ์ (กัน query เกินจำเป็น)
+    try:
+        if request.user.is_authenticated and base["is_approver"]:
+            if _is_org_manager(request.user):
+                base["pending_count"] = LeaveRequest.objects.filter(status="pending").count()
+            else:
+                me = Employee.objects.filter(user=request.user).select_related("team").first()
+                if me and me.team_id:
+                    base["pending_count"] = (
+                        LeaveRequest.objects.filter(status="pending", employee__team=me.team)
+                        .exclude(employee=me)
+                        .count()
+                    )
+    except Exception:
+        pass
+
     if ctx:
         base.update(ctx)
     return render(request, template_name, base)
@@ -104,7 +136,7 @@ def app_dashboard(request):
 
     upcoming_holidays = []
     latest_announcements = []
-    pending_count = 0
+    pending_count = 0  # เฉพาะหน้านี้ยังคงส่งซ้ำเพื่อโชว์ในบล็อกการ์ด (navbar ก็มีของมันเองแล้ว)
 
     try:
         qs_h = Holiday.objects.filter(date__gte=today).order_by("date")[:6]
@@ -151,7 +183,6 @@ def app_dashboard(request):
 # =========================
 # Leave
 # =========================
-
 LEAVE_KPIS = [
     ("annual",    "🌴", "Annual leave",   "annual_leave"),
     ("sick",      "🤒", "Sick leave",     "sick_leave"),
@@ -195,7 +226,7 @@ def leave_dashboard(request):
 
 @login_required(login_url="auth:login")
 def leave_request(request):
-    # เดิมใช้ get_object_or_404 -> ผู้ใช้ใหม่ที่ยังไม่มี Employee จะ 404
+    # ใช้ get_or_create กัน 404 กรณียังไม่มี Employee
     employee, _ = Employee.objects.get_or_create(
         user=request.user,
         defaults={"position": "", "team": None, "is_team_lead": False},
@@ -256,13 +287,12 @@ def leave_detail(request, pk: int):
 # =========================
 # One-click approve/reject via email (public endpoints)
 # =========================
-
 def _perform_email_action(request: HttpRequest, action: str):
     """
-    แกนกลาง: รับ token จาก query ?t=... -> ตรวจสอบ -> เปลี่ยนสถานะ -> ส่งไปหน้า result
+    รับ token จาก query ?t=... -> ตรวจสอบ -> เปลี่ยนสถานะ -> ส่งไปหน้า result
     - ถ้าเปิด APPROVAL_REQUIRE_PERMISSION=1: ต้องล็อกอินเป็นผู้มีสิทธิ์ (หัวหน้าทีม / manager / staff)
       * ถ้าไม่ล็อกอิน -> ส่งไปหน้า login โดยเก็บ next ไว้
-    - ถ้า =0: อนุญาต one-click โดยไม่ต้องล็อกอิน (เหมาะกับ dev/ทดสอบ)
+    - ถ้า =0: อนุญาต one-click โดยไม่ต้องล็อกอิน
     """
     token = request.GET.get("t")
     if not token:
@@ -274,7 +304,7 @@ def _perform_email_action(request: HttpRequest, action: str):
 
     leave_id = data.get("leave_id")
     token_action = data.get("action")
-    actor_email = data.get("actor")  # อีเมลที่ฝังในโทเค็น (ผู้อนุมัติที่ตั้งใจ)
+    actor_email = data.get("actor")  # เผื่อใช้ในอนาคต
 
     if token_action != action:
         return HttpResponse("token action mismatch", status=400)
@@ -284,17 +314,14 @@ def _perform_email_action(request: HttpRequest, action: str):
         pk=leave_id,
     )
 
-    # นโยบายสิทธิ์
     require_perm = str(getattr(settings, "APPROVAL_REQUIRE_PERMISSION", "1")).lower() in ("1", "true", "yes")
     if require_perm:
         if not request.user.is_authenticated:
-            # ✅ ใช้ redirect_to_login เพื่อเลี่ยง NoReverseMatch (namespace 'auth:login')
             return redirect_to_login(
                 request.get_full_path(),
-                login_url=resolve_url(settings.LOGIN_URL)  # จะเป็น 'auth:login'
+                login_url=resolve_url(settings.LOGIN_URL)
             )
 
-        # ต้องเป็นหัวหน้าทีมของทีมเดียวกัน / manager / staff
         allowed = _is_org_manager(request.user)
         if not allowed:
             me = Employee.objects.filter(user=request.user).select_related("team").first()
@@ -302,9 +329,7 @@ def _perform_email_action(request: HttpRequest, action: str):
                 allowed = True
         if not allowed:
             return HttpResponseForbidden("คุณไม่มีสิทธิ์อนุมัติคำขอนี้")
-    # else: โหมดอนุมัติทันที (เชื่อใจโทเค็น)
 
-    # อนุมัติ/ปฏิเสธเฉพาะกรณียัง pending
     if leave.status == "pending":
         if action == "approve":
             leave.status = "approved"
@@ -312,12 +337,10 @@ def _perform_email_action(request: HttpRequest, action: str):
             leave.status = "rejected"
         leave.save()
         try:
-            # แจ้งผู้ยื่นทราบ
             send_leave_status_to_requester(leave)
         except Exception:
             pass
 
-    # พาไปหน้าแสดงผล (public)
     return redirect(reverse("hr:email_action_result", args=[leave.pk]))
 
 
@@ -333,11 +356,11 @@ def email_reject_leave(request: HttpRequest):
 
 @require_GET
 def email_action_result(request, pk: int):
-    """หน้าแสดงผลลัพธ์หลังคลิกอนุมัติ/ปฏิเสธจากอีเมล (สาธารณะ)"""
     lr = get_object_or_404(
         LeaveRequest.objects.select_related("employee__user", "employee__team"),
         pk=pk,
     )
+    # ใช้ render ตรง ๆ (public page ไม่ต้อง inject navbar flags ก็ได้)
     return render(request, "hr/leave_action_result.html", {"leave": lr})
 
 
@@ -370,7 +393,7 @@ def manage_requests(request):
 
         if action == "approve":
             lr.status = "approved"
-            lr.save()  # signals จะตัดโควต้า
+            lr.save()
             messages.success(request, "อนุมัติแล้ว")
         elif action == "reject":
             lr.status = "rejected"
@@ -681,7 +704,7 @@ def announcement_delete(request, pk: int):
 
 
 # =========================
-# Placeholder menus
+# Placeholders
 # =========================
 @login_required(login_url="auth:login")
 def menu_courier(request):
