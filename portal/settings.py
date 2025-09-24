@@ -27,13 +27,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "hr.apps.HrConfig",   # แอปของคุณ
+    "hr.apps.HrConfig",
 ]
 
 # ===== Middleware =====
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",   # เสิร์ฟ static ในโปรดักชัน
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -96,8 +96,8 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ===== Auth redirects =====
-LOGIN_URL = "auth:login"                 # ใช้ namespace 'auth'
-LOGIN_REDIRECT_URL = "/"  # ตรวจว่า route นี้มีอยู่จริง
+LOGIN_URL = "auth:login"
+LOGIN_REDIRECT_URL = "/dashboard/"   # ล็อกอินแล้วมาที่แดชบอร์ด
 LOGOUT_REDIRECT_URL = "auth:login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -111,6 +111,6 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-    # สำคัญบน Render: เชื่อ header จากพร็อกซีเพื่อทราบว่ารีเควสต์ต้นทางเป็น HTTPS
+    # สำคัญบน Render: ป้องกันลูป http<->https หลังพร็อกซี
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
