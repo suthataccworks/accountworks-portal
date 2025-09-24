@@ -1,11 +1,11 @@
 # hr/emails.py
 from __future__ import annotations
 
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.urls import reverse
+from django.urls import reverse, NoReverseMatch
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models import Q
@@ -15,6 +15,28 @@ from .utils.tokens import make_leave_action_token
 from .models import LeaveRequest, Employee  # ปรับให้ตรงกับโปรเจกต์ถ้าชื่อไม่เหมือน
 
 User = get_user_model()
+
+
+# =========================
+# URL helpers (รองรับหลายชื่อตามโปรเจกต์)
+# =========================
+def _reverse_with_fallback(candidates: list[str]) -> str:
+    """
+    พยายาม reverse ให้ได้สักชื่อหนึ่งตามลำดับ
+    เช่น ["hr:email_approve", "hr:email_approve_leave"]
+    """
+    last_err: Optional[Exception] = None
+    for name in candidates:
+        try:
+            return reverse(name)
+        except NoReverseMatch as e:
+            last_err = e
+            continue
+    # ถ้าไม่มีสักชื่อ ให้ raise error สุดท้ายเพื่อเดบักง่าย
+    if last_err:
+        raise last_err
+    raise NoReverseMatch("No url name candidates provided")
+
 
 # =========================
 # Helpers: คัดเลือก Approvers
@@ -32,6 +54,7 @@ def _team_lead_users_for(employee: Employee) -> List[User]:
     )
     return [e.user for e in leads if e.user and e.user.email]
 
+
 def _org_approver_users() -> List[User]:
     """
     ผู้อนุมัติระดับองค์กร:
@@ -42,6 +65,7 @@ def _org_approver_users() -> List[User]:
         Q(groups__name__iexact="manager") | Q(is_staff=True) | Q(is_superuser=True)
     ).distinct()
     return [u for u in qs if u.email]
+
 
 def _dedup_keep_order(users: Iterable[User]) -> List[User]:
     seen = set()
@@ -56,26 +80,33 @@ def _dedup_keep_order(users: Iterable[User]) -> List[User]:
         out.append(u)
     return out
 
+
 def _approver_users_for(leave: LeaveRequest) -> List[User]:
     """
-    รวมผู้มีสิทธิ์อนุมัติ: หัวหน้าทีมของผู้ยื่น + ผู้อนุมัติระดับองค์กร
-    ตัดซ้ำออก และกันไม่ให้ส่งกลับไปหา 'ผู้ยื่น' เอง
+    นโยบายผู้รับ:
+    - พยายามส่งให้ 'หัวหน้าทีม' ก่อน
+    - ถ้าไม่พบหัวหน้าทีมเลย ให้ fallback ไป 'ผู้อนุมัติระดับองค์กร' (manager/staff/superuser)
+    - กันไม่ให้ส่งกลับไปหา 'ผู้ยื่น' เอง
     """
     if not leave or not leave.employee_id:
         return []
 
-    result = _dedup_keep_order(
-        [*_team_lead_users_for(leave.employee), *_org_approver_users()]
-    )
+    emp = leave.employee
+    leads = _team_lead_users_for(emp)
+    users = leads if leads else _org_approver_users()
+
+    result = _dedup_keep_order(users)
+
     # กันส่งถึงผู้ยื่นเอง
     req_email = ""
     try:
-        req_email = (leave.employee.user.email or "").strip().lower()
+        req_email = (emp.user.email or "").strip().lower()
     except Exception:
         pass
     if req_email:
         result = [u for u in result if str(u.email).strip().lower() != req_email]
     return result
+
 
 def _approver_emails_for(leave: LeaveRequest) -> List[str]:
     return [u.email for u in _approver_users_for(leave) if u.email]
@@ -86,8 +117,8 @@ def _approver_emails_for(leave: LeaveRequest) -> List[str]:
 # =========================
 def send_leave_request_to_approvers(leave: LeaveRequest) -> int:
     """
-    ส่งอีเมลคำขอลาใหม่ถึงผู้อนุมัติทั้งหมด (หัวหน้าทีม + อนุมัติระดับองค์กร)
-    โดยจะ 'ส่งแยกทีละคน' เพื่อฝังโทเค็น (approve/reject) ที่ผูกกับอีเมลผู้รับรายนั้น
+    ส่งอีเมลคำขอลาใหม่ถึงผู้อนุมัติ (หัวหน้าทีมก่อน; ถ้าไม่มีค่อย fallback)
+    จะ 'ส่งแยกทีละคน' เพื่อฝังโทเค็น (approve/reject) ที่ผูกกับอีเมลผู้รับรายนั้น
     """
     users = _approver_users_for(leave)
     if not users:
@@ -95,8 +126,10 @@ def send_leave_request_to_approvers(leave: LeaveRequest) -> int:
 
     # เตรียมข้อมูลทั่วไป
     site = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
-    approve_path = reverse("hr:email_approve_leave")
-    reject_path = reverse("hr:email_reject_leave")
+
+    # รองรับได้ทั้งสองแบบชื่อ url
+    approve_path = _reverse_with_fallback(["hr:email_approve", "hr:email_approve_leave"])
+    reject_path  = _reverse_with_fallback(["hr:email_reject",  "hr:email_reject_leave"])
 
     emp = leave.employee
     requester = emp.user if emp and getattr(emp, "user", None) else None
@@ -104,9 +137,21 @@ def send_leave_request_to_approvers(leave: LeaveRequest) -> int:
 
     # แปลงประเภทลาให้เป็น display ชื่อ (รองรับทั้งมี method หรือไม่มี)
     get_disp = getattr(leave, "get_leave_type_display", None)
-    leave_type_disp = get_disp() if callable(get_disp) else str(leave.leave_type or "")
+    leave_type_disp = get_disp() if callable(get_disp) else str(getattr(leave, "leave_type", "") or "")
 
     subject = f"[คำขอลาใหม่] {requester_name} • {leave.start_date}–{leave.end_date} • {leave_type_disp}"
+
+    created_at = getattr(leave, "created_at", None)
+    try:
+        created_at = timezone.localtime(created_at) if created_at else timezone.localtime()
+    except Exception:
+        created_at = timezone.localtime()
+
+    team_name = "-"
+    try:
+        team_name = getattr(emp.team, "name", "-") if emp and emp.team_id else "-"
+    except Exception:
+        pass
 
     sent = 0
     for u in users:
@@ -114,23 +159,24 @@ def send_leave_request_to_approvers(leave: LeaveRequest) -> int:
         t_approve = make_leave_action_token(leave.id, "approve", u.email)
         t_reject = make_leave_action_token(leave.id, "reject", u.email)
         approve_url = f"{site}{approve_path}?{urlencode({'t': t_approve})}"
-        reject_url = f"{site}{reject_path}?{urlencode({'t': t_reject})}"
+        reject_url  = f"{site}{reject_path}?{urlencode({'t': t_reject})}"
 
         ctx = {
             "leave": leave,
             "employee_name": requester_name,
-            "team_name": getattr(emp.team, "name", "-") if emp and emp.team_id else "-",
+            "team_name": team_name,
             "leave_type": leave_type_disp,
             "start_date": leave.start_date,
             "end_date": leave.end_date,
-            "reason": leave.reason or "-",
+            "reason": getattr(leave, "reason", "") or "-",
             "approve_url": approve_url,
             "reject_url": reject_url,
             "site_url": site,
-            "created_at": timezone.localtime(getattr(leave, "created_at", timezone.now())),
+            "created_at": created_at,
+            "subject": subject,  # เผื่อใช้ใน plain_fallback
         }
 
-        # หมายเหตุ: ส่งทีละคนเพื่อให้แต่ละฉบับมีโทเค็นเฉพาะรายบุคคล
+        # ส่งทีละคนเพื่อให้แต่ละฉบับมีโทเค็นเฉพาะรายบุคคล
         ok = send_html_mail(subject, [u.email], "emails/leave_request.html", ctx)
         if ok:
             sent += 1
@@ -142,8 +188,8 @@ def send_leave_request_to_approvers(leave: LeaveRequest) -> int:
 # Email: แจ้งผู้ยื่นเมื่อสถานะเปลี่ยน
 # =========================
 def send_leave_status_to_requester(leave: LeaveRequest) -> int:
-    email = getattr(getattr(leave, "employee", None), "user", None)
-    email = getattr(email, "email", None)
+    user = getattr(getattr(leave, "employee", None), "user", None)
+    email = getattr(user, "email", None)
     if not email:
         return 0
 
@@ -152,15 +198,16 @@ def send_leave_status_to_requester(leave: LeaveRequest) -> int:
 
     # รองรับทั้งโมเดลที่มี get_status_display() และไม่มี
     get_disp = getattr(leave, "get_status_display", None)
-    status_disp = get_disp() if callable(get_disp) else leave.status
+    status_disp = get_disp() if callable(get_disp) else getattr(leave, "status", "-")
 
     ctx = {
         "leave": leave,
         "leave_url": leave_url,
         "site_url": site,
         "status_display": status_disp,
+        "subject": f"[อัปเดตคำขอลา] สถานะ: {status_disp}",
     }
-    subject = f"[อัปเดตคำขอลา] สถานะ: {status_disp}"
+    subject = ctx["subject"]
     return send_html_mail(subject, [email], "emails/leave_status.html", ctx)
 
 
@@ -196,7 +243,7 @@ def build_today_items():
             name = "-"
 
         get_disp = getattr(lr, "get_leave_type_display", None)
-        leave_type = get_disp() if callable(get_disp) else str(lr.leave_type or "")
+        leave_type = get_disp() if callable(get_disp) else str(getattr(lr, "leave_type", "") or "")
 
         items.append(
             {
@@ -207,7 +254,6 @@ def build_today_items():
                 "total_days": total_days,
             }
         )
-
     return today, items
 
 
@@ -272,6 +318,11 @@ def send_daily_digest() -> int:
         return 0
 
     site = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
-    ctx = {"today": today, "items": items, "site_url": site}
-    subject = f"[สรุปวันนี้] ผู้ที่ลางาน {today.isoformat()}"
+    ctx = {
+        "today": today,
+        "items": items,
+        "site_url": site,
+        "subject": f"[สรุปวันนี้] ผู้ที่ลางาน {today.isoformat()}",
+    }
+    subject = ctx["subject"]
     return send_html_mail(subject, to_emails, "emails/daily_digest.html", ctx)
