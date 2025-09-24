@@ -6,6 +6,6 @@
 <form method="post">
   {% csrf_token %}
   <button type="submit" class="btn btn-danger">ลบ</button>
-  <a href="{% url 'announcement_detail' a.pk %}" class="btn btn-secondary">ยกเลิก</a>
+  <a href="{% url 'hr:announcement_detail' a.pk %}" class="btn btn-secondary">ยกเลิก</a>
 </form>
 {% endblock %}
