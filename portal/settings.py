@@ -19,6 +19,12 @@ CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrende
 # (เผื่อใช้ในอีเมล/ลิงก์)
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
+# >>> อนุมัติผ่านอีเมลแบบไม่เช็คสิทธิ์ <<<
+# views._perform_email_action จะอ่านค่านี้:
+# ถ้า "0" หรือ falsey -> ไม่เช็คสิทธิ์ (one-click approve/reject)
+# ถ้า "1" -> ต้องมีสิทธิ์ (หัวหน้าทีม/manager/staff) และ/หรือ login
+APPROVAL_REQUIRE_PERMISSION = os.getenv("APPROVAL_REQUIRE_PERMISSION", "0")
+
 # ===== Email (Anymail + SendGrid API) =====
 if DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -32,7 +38,7 @@ ANYMAIL = {
 # ต้องตรงกับ Single Sender ที่ยืนยันบน SendGrid
 DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL",
-    "AccountWorks Portal <hr.accworks@gmail.com>"
+    "AccountWorks Portal <hr.accworks@gmail.com>",
 )
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
