@@ -60,7 +60,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
+        "APP_DIRS": True,  # จะสลับเป็น False อัตโนมัติด้านล่างเมื่อ DEBUG=False
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -69,6 +69,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "hr.context_processors.role_flags",
             ],
+            # "loaders" จะถูกกำหนดในโหมดโปรดักชันเท่านั้น (ด้านล่าง)
         },
     },
 ]
@@ -127,7 +128,8 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 
-    # Cache templates (ลดโหลด/แรม)
+    # ✅ ใช้ template cache อย่างถูกต้อง: ต้องปิด APP_DIRS แล้วกำหนด loaders เอง
+    TEMPLATES[0]["APP_DIRS"] = False
     TEMPLATES[0]["OPTIONS"]["loaders"] = [
         (
             "django.template.loaders.cached.Loader",
