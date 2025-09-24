@@ -19,21 +19,18 @@ CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrende
 # (เผื่อใช้ในอีเมล/ลิงก์)
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
-# ===== Email (Anymail + Postmark API) =====
-# - DEBUG=True: ส่งอีเมลลง console
-# - DEBUG=False: ส่งผ่าน Postmark API (ไม่ใช้ SMTP จึงใช้ได้บน Render)
+# ===== Email (Anymail + Resend API) =====
 if DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 else:
-    EMAIL_BACKEND = "anymail.backends.postmark.EmailBackend"
+    EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
 
-# Anymail settings (เลือกใช้ Postmark เป็นค่าเริ่ม)
 ANYMAIL = {
-    # ใส่ค่า ENV: POSTMARK_SERVER_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    "POSTMARK_SERVER_TOKEN": os.getenv("POSTMARK_SERVER_TOKEN", ""),
+    "RESEND_API_KEY": os.getenv("RESEND_API_KEY", ""),
 }
 
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "AccountWorks Portal <noreply@your-domain.com>")
+# โหมดฟรีของ Resend (ยังไม่ผูกโดเมน) ใช้ from นี้
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "onboarding@resend.dev")
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
 
@@ -46,7 +43,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "hr.apps.HrConfig",
-    # Anymail สำหรับส่งอีเมลผ่านผู้ให้บริการ API
     "anymail",
 ]
 
@@ -77,7 +73,6 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "hr.context_processors.role_flags",
             ],
-            # "loaders" จะถูกกำหนดในโหมดโปรดักชันเท่านั้น (ด้านล่าง)
         },
     },
 ]
@@ -118,7 +113,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # ===== Auth redirects =====
 LOGIN_URL = "auth:login"
-LOGIN_REDIRECT_URL = "/home/"     # ⬅️ ล็อกอินเสร็จให้มาที่หน้า Home
+LOGIN_REDIRECT_URL = "/home/"
 LOGOUT_REDIRECT_URL = "auth:login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -132,11 +127,10 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-    # สำคัญบน Render: ป้องกันลูป http<->https หลังพร็อกซี
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 
-    # ✅ ใช้ template cache อย่างถูกต้อง: ต้องปิด APP_DIRS แล้วกำหนด loaders เอง
+    # cache template loaders
     TEMPLATES[0]["APP_DIRS"] = False
     TEMPLATES[0]["OPTIONS"]["loaders"] = [
         (
@@ -148,7 +142,7 @@ if not DEBUG:
         )
     ]
 
-# ===== Logging (ดู error อีเมล/อื่นๆ บน console) =====
+# ===== Logging =====
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -157,7 +151,6 @@ LOGGING = {
     "loggers": {
         "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
         "django": {"handlers": ["console"], "level": "INFO"},
-        # anymail จะ log ข้อผิดพลาดผู้ให้บริการไว้ใน console เช่นกัน
         "anymail": {"handlers": ["console"], "level": "INFO"},
     },
 }
