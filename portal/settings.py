@@ -95,10 +95,12 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+
 # ===== Auth redirects =====
 LOGIN_URL = "auth:login"
-LOGIN_REDIRECT_URL = "/dashboard/"   # ล็อกอินแล้วมาที่แดชบอร์ด
+LOGIN_REDIRECT_URL = "/home/"     # ⬅️ ล็อกอินเสร็จให้มาที่หน้า Home
 LOGOUT_REDIRECT_URL = "auth:login"
+
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
