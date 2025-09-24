@@ -14,14 +14,14 @@
 
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h2 class="form-section-title m-0">Submit Leave Request</h2>
-  <a href="{% url 'leave_dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+  <a href="{% url 'hr:leave_dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
 </div>
 
 <div class="card aw-card">
   <div class="card-body p-4">
     {% if messages %}
       {% for m in messages %}
-        <div class="alert alert-{{ m.tags }} mb-3">{{ m }}</div>
+        <div class="alert alert-{{ m.tags|default:'info' }} mb-3">{{ m }}</div>
       {% endfor %}
     {% endif %}
 
@@ -29,7 +29,7 @@
       <div class="alert alert-danger">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <form method="post" novalidate id="leave-form">
+    <form method="post" novalidate id="leave-form" action="{% url 'hr:leave_request' %}">
       {% csrf_token %}
       <div class="row g-3">
         <!-- Leave type -->
@@ -72,7 +72,7 @@
 
       <div class="d-flex gap-2 mt-4">
         <button class="btn btn-primary px-4" type="submit">Submit</button>
-        <a class="btn btn-light" href="{% url 'leave_dashboard' %}">Cancel</a>
+        <a class="btn btn-light" href="{% url 'hr:leave_dashboard' %}">Cancel</a>
       </div>
     </form>
   </div>
@@ -85,7 +85,6 @@
   const reason  = document.getElementById('id_reason');
   const counter = document.getElementById('reason-count');
 
-  // ตั้งค่า min = วันนี้ สำหรับ input date (กันเลือกย้อนหลังจาก client)
   if (startEl && !startEl.min) startEl.min = '{{ today }}';
   if (endEl && !endEl.min) endEl.min = '{{ today }}';
 
@@ -109,7 +108,6 @@
   reason?.addEventListener('input', updateCount);
   document.addEventListener('DOMContentLoaded', updateCount);
 
-  // กันส่งฟอร์มถ้า end < start (เช็คอีกชั้น)
   document.getElementById('leave-form')?.addEventListener('submit', (e)=>{
     const a = parseISO(startEl?.value), b = parseISO(endEl?.value);
     if(a && b && b < a){
