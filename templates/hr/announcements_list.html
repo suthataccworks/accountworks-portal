@@ -12,14 +12,14 @@
   </div>
   {% if is_manager_or_admin %}
     <div class="col-md-4 text-md-end">
-      <a class="btn btn-success" href="{% url 'announcement_add' %}">+ สร้างประกาศ</a>
+      <a class="btn btn-success" href="{% url 'hr:announcement_add' %}">+ สร้างประกาศ</a>
     </div>
   {% endif %}
 </form>
 
 <div class="list-group">
   {% for a in items %}
-    <a href="{% url 'announcement_detail' a.pk %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
+    <a href="{% url 'hr:announcement_detail' a.pk %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
       <div class="me-3">
         <div class="fw-semibold">
           {% if a.is_pinned %}📌{% endif %} {{ a.title }}
