@@ -19,17 +19,23 @@ CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS") or ["https://*.onrende
 # (เผื่อใช้ในอีเมล/ลิงก์)
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
-# ===== Email =====
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"  # ห้ามเปิดพร้อม TLS
-EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "AccountWorks Portal <hr.accworks@gmail.com>")
+# ===== Email (Anymail + Postmark API) =====
+# - DEBUG=True: ส่งอีเมลลง console
+# - DEBUG=False: ส่งผ่าน Postmark API (ไม่ใช้ SMTP จึงใช้ได้บน Render)
+if DEBUG:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+else:
+    EMAIL_BACKEND = "anymail.backends.postmark.EmailBackend"
+
+# Anymail settings (เลือกใช้ Postmark เป็นค่าเริ่ม)
+ANYMAIL = {
+    # ใส่ค่า ENV: POSTMARK_SERVER_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    "POSTMARK_SERVER_TOKEN": os.getenv("POSTMARK_SERVER_TOKEN", ""),
+}
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "AccountWorks Portal <noreply@your-domain.com>")
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
 
 # ===== Apps =====
 INSTALLED_APPS = [
@@ -40,6 +46,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "hr.apps.HrConfig",
+    # Anymail สำหรับส่งอีเมลผ่านผู้ให้บริการ API
+    "anymail",
 ]
 
 # ===== Middleware =====
@@ -60,7 +68,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,  # จะสลับเป็น False อัตโนมัติด้านล่างเมื่อ DEBUG=False
+        "APP_DIRS": True,  # จะปิดใน prod ด้านล่างเมื่อ DEBUG=False
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -140,7 +148,7 @@ if not DEBUG:
         )
     ]
 
-# ===== Logging (ดู error SMTP/อื่นๆ บน console) =====
+# ===== Logging (ดู error อีเมล/อื่นๆ บน console) =====
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -149,5 +157,7 @@ LOGGING = {
     "loggers": {
         "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
         "django": {"handlers": ["console"], "level": "INFO"},
+        # anymail จะ log ข้อผิดพลาดผู้ให้บริการไว้ใน console เช่นกัน
+        "anymail": {"handlers": ["console"], "level": "INFO"},
     },
 }
