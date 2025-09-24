@@ -40,7 +40,7 @@ urlpatterns = [
 
     # Placeholders
     path("courier/", views.menu_courier, name="menu_courier"),
-    path("myteam/", views.menu_myteam, name="menu_myteam"),
+    path("myteam/", views.menu_myteam, name="myteam"),
 
     # Email diagnostics (staff only)
     path("diag/email/leave/<int:leave_id>/", views.email_diag_leave, name="email_diag_leave"),
