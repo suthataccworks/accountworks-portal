@@ -48,7 +48,7 @@
           {% endfor %}
         {% endif %}
 
-        <form method="post" novalidate action="{% url 'login' %}">
+        <form method="post" novalidate action="{% url 'auth:login' %}">
           {% csrf_token %}
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
@@ -59,8 +59,9 @@
                    name="{{ form.username.html_name|default:'username' }}"
                    value="{{ form.username.value|default_if_none:'' }}"
                    class="form-control"
-                   autocomplete="username" required autofocus>
-            {% if form.username.errors %}
+                   autocomplete="username"
+                   required autofocus>
+            {% if form.username and form.username.errors %}
               <div class="text-danger small mt-1">{{ form.username.errors|join:", " }}</div>
             {% endif %}
           </div>
@@ -70,9 +71,11 @@
             <input type="password"
                    id="{{ form.password.id_for_label|default:'id_password' }}"
                    name="{{ form.password.html_name|default:'password' }}"
-                   class="form-control" autocomplete="current-password" required>
+                   class="form-control"
+                   autocomplete="current-password"
+                   required>
             <button type="button" class="toggle-btn" id="togglePass" aria-label="toggle password">👁</button>
-            {% if form.password.errors %}
+            {% if form.password and form.password.errors %}
               <div class="text-danger small mt-1">{{ form.password.errors|join:", " }}</div>
             {% endif %}
           </div>
@@ -91,13 +94,17 @@
   </div>
 
   <script>
-    const btn = document.getElementById('togglePass');
-    const pwd = document.getElementById('{{ form.password.id_for_label|default:"id_password" }}');
-    btn?.addEventListener('click', ()=>{
-      const s = pwd.getAttribute('type') === 'password' ? 'text' : 'password';
-      pwd.setAttribute('type', s);
-      btn.textContent = s === 'password' ? '👁' : '🙈';
-    });
+    (function(){
+      var btn = document.getElementById('togglePass');
+      var pwd = document.getElementById('{{ form.password.id_for_label|default:"id_password" }}');
+      if (btn && pwd) {
+        btn.addEventListener('click', function(){
+          var s = pwd.getAttribute('type') === 'password' ? 'text' : 'password';
+          pwd.setAttribute('type', s);
+          btn.textContent = s === 'password' ? '👁' : '🙈';
+        });
+      }
+    })();
   </script>
 </body>
 </html>

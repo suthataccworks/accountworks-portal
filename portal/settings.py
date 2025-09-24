@@ -96,9 +96,11 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ===== Auth redirects (แก้ namespace ให้ถูก) =====
-LOGIN_URL = "login"  # ใช้ของ django.contrib.auth.urls
-LOGIN_REDIRECT_URL = "hr:app_dashboard"
-LOGOUT_REDIRECT_URL = "hr:app_dashboard"
+# ===== Auth redirects (ใช้ namespace ที่ตั้งด้านบน) =====
+LOGIN_URL = "auth:login"                 # ✅ ชี้ไปที่ auth:login โดยตรง
+LOGIN_REDIRECT_URL = "hr:app_dashboard"  # ตรวจว่า route นี้มีอยู่จริง
+LOGOUT_REDIRECT_URL = "auth:login"       # แนะนำให้กลับไปหน้า login หลังออก
+
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
