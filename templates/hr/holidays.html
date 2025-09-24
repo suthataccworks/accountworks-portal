@@ -4,7 +4,7 @@
 <h2 class="mb-3">📅 วันหยุดบริษัท</h2>
 
 {% if is_manager_or_admin %}
-  <p><a href="{% url 'holiday_add' %}" class="btn btn-primary">➕ เพิ่มวันหยุด</a></p>
+  <p><a href="{% url 'hr:holiday_add' %}" class="btn btn-primary">➕ เพิ่มวันหยุด</a></p>
 {% endif %}
 
 <table class="table table-bordered bg-white">
@@ -26,13 +26,15 @@
       <td>{{ h.is_public|yesno:"✔,✘" }}</td>
       {% if is_manager_or_admin %}
         <td>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'holiday_edit' h.pk %}">แก้ไข</a>
-          <a class="btn btn-sm btn-outline-danger" href="{% url 'holiday_delete' h.pk %}">ลบ</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'hr:holiday_edit' h.pk %}">แก้ไข</a>
+          <a class="btn btn-sm btn-outline-danger" href="{% url 'hr:holiday_delete' h.pk %}">ลบ</a>
         </td>
       {% endif %}
     </tr>
   {% empty %}
-    <tr><td colspan="4">ยังไม่มีวันหยุด</td></tr>
+    <tr>
+      <td colspan="{% if is_manager_or_admin %}4{% else %}3{% endif %}">ยังไม่มีวันหยุด</td>
+    </tr>
   {% endfor %}
   </tbody>
 </table>
