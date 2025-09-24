@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import (
     HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, HttpRequest, JsonResponse
@@ -33,7 +34,7 @@ from .models import (
 from .emails import send_leave_status_to_requester
 from .utils.tokens import validate_leave_action_token
 
-# ⬇️ เพิ่ม: สำหรับส่งอีเมลหา Approver และใช้ใน debug
+# ส่งเมลแจ้งผู้อนุมัติ + ใช้ในหน้า diag
 from .emails import send_leave_request_to_approvers, _approver_users_for
 
 
@@ -252,14 +253,15 @@ def leave_request(request):
                 pass
             lr.save()
 
-            # ⬇️ เพิ่ม: ส่งอีเมลแจ้งหัวหน้าทีม/ผู้อนุมัติ (พร้อม log และ message)
-            try:
-                sent = send_leave_request_to_approvers(lr)
-                messages.success(request, f"ส่งคำขอลาสำเร็จ ✅ (อีเมลแจ้ง {sent} ฉบับ)")
-            except Exception as e:
-                messages.success(request, "ส่งคำขอลาสำเร็จ ✅")
-                messages.error(request, f"แต่ส่งอีเมลไม่สำเร็จ: {e}")
+            # ส่งอีเมล "หลัง commit" เพื่อกันเคส worker รีสตาร์ตระหว่างส่ง
+            def _send():
+                try:
+                    send_leave_request_to_approvers(lr)
+                except Exception as e:
+                    messages.error(request, f"ส่งอีเมลไม่สำเร็จ: {e}")
 
+            transaction.on_commit(_send)
+            messages.success(request, "ส่งคำขอลาสำเร็จ ✅ (กำลังส่งอีเมลแจ้งหัวหน้า)")
             return redirect("hr:leave_dashboard")
         messages.error(request, "กรุณาตรวจสอบฟอร์มอีกครั้ง")
     else:
