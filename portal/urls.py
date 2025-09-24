@@ -11,12 +11,15 @@ from hr import views as hr_views
 def ping(_request):
     return HttpResponse("pong")
 
+# portal/urls.py
+from django.shortcuts import redirect
+
 def root_router(request):
-    # ยังไม่ล็อกอิน → ไปหน้า login ของ Django auth
     if not request.user.is_authenticated:
         return redirect("auth:login")
-    # ล็อกอินแล้ว → ไปแดชบอร์ดผู้ใช้ (แก้ชื่อให้ตรงกับ hr/urls.py ถ้าต่าง)
-    return redirect("hr:app_dashboard")
+    # อย่า redirect ไป hr:app_dashboard เพราะมันคือ path "" == "/"
+    return redirect("hr:leave_dashboard")  # เส้นนี้คือ /dashboard/ ไม่ชน root อีก
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
