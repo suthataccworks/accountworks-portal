@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count, Q
 from django.http import (
-    HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, HttpRequest
+    HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, HttpRequest, JsonResponse
 )
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.utils.timezone import make_naive
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
+from django.contrib.admin.views.decorators import staff_member_required
 
 from .forms import LeaveRequestForm, HolidayForm, AnnouncementForm
 from .models import (
@@ -31,6 +32,9 @@ from .models import (
 )
 from .emails import send_leave_status_to_requester
 from .utils.tokens import validate_leave_action_token
+
+# ⬇️ เพิ่ม: สำหรับส่งอีเมลหา Approver และใช้ใน debug
+from .emails import send_leave_request_to_approvers, _approver_users_for
 
 
 # =========================
@@ -247,7 +251,15 @@ def leave_request(request):
             except Exception:
                 pass
             lr.save()
-            messages.success(request, "ส่งคำขอลาสำเร็จ ✅")
+
+            # ⬇️ เพิ่ม: ส่งอีเมลแจ้งหัวหน้าทีม/ผู้อนุมัติ (พร้อม log และ message)
+            try:
+                sent = send_leave_request_to_approvers(lr)
+                messages.success(request, f"ส่งคำขอลาสำเร็จ ✅ (อีเมลแจ้ง {sent} ฉบับ)")
+            except Exception as e:
+                messages.success(request, "ส่งคำขอลาสำเร็จ ✅")
+                messages.error(request, f"แต่ส่งอีเมลไม่สำเร็จ: {e}")
+
             return redirect("hr:leave_dashboard")
         messages.error(request, "กรุณาตรวจสอบฟอร์มอีกครั้ง")
     else:
@@ -714,3 +726,46 @@ def menu_courier(request):
 @login_required(login_url="auth:login")
 def menu_myteam(request):
     return render_ctx(request, "hr/overview.html", {"placeholder": "My Team – coming soon"})
+
+
+# =========================
+# Email diagnostics (สำหรับทดสอบ/ดีบัก)
+# =========================
+@staff_member_required
+def email_diag_leave(request, leave_id: int):
+    """
+    แสดงว่าใบลานี้จะส่งหาใครบ้าง และลองสั่งส่งเมลได้ด้วย ?send=1
+    """
+    leave = get_object_or_404(LeaveRequest, pk=leave_id)
+    users = _approver_users_for(leave)
+    info = {
+        "leave_id": leave.id,
+        "recipients": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "name": (u.get_full_name() or u.username),
+                "is_staff": u.is_staff,
+                "is_superuser": u.is_superuser,
+                "groups": [g.name for g in u.groups.all()],
+            }
+            for u in users
+        ],
+        "settings": {
+            "SITE_URL": settings.SITE_URL,
+            "DEFAULT_FROM_EMAIL": settings.DEFAULT_FROM_EMAIL,
+            "EMAIL_HOST": getattr(settings, "EMAIL_HOST", None),
+            "EMAIL_PORT": getattr(settings, "EMAIL_PORT", None),
+            "EMAIL_USE_TLS": getattr(settings, "EMAIL_USE_TLS", None),
+            "EMAIL_USE_SSL": getattr(settings, "EMAIL_USE_SSL", None),
+        },
+    }
+
+    if request.GET.get("send") == "1":
+        try:
+            sent = send_leave_request_to_approvers(leave)
+            info["sent"] = sent
+        except Exception as e:
+            return HttpResponse(f"ERROR: {type(e).__name__}: {e}", status=500)
+
+    return JsonResponse(info, json_dumps_params={"ensure_ascii": False, "indent": 2})
